@@ -1,0 +1,65 @@
+expense_id,date,category,vendor,amount_eur,fixed_or_variable,allocated_project_id
+EXP05000,2025-10-02,Software Subscriptions,Google Workspace,1889.79,fixed,
+EXP05001,2025-10-02,Coworking / Office,Personio,2366.91,fixed,
+EXP05002,2025-10-02,Legal & Accounting,Slack,959.66,fixed,
+EXP05003,2025-10-02,Insurance,WeWork,430.71,fixed,
+EXP05004,2025-11-02,Software Subscriptions,AWS,1869.26,fixed,
+EXP05005,2025-11-02,Coworking / Office,AWS,2390.98,fixed,
+EXP05006,2025-11-02,Legal & Accounting,Personio,952.39,fixed,
+EXP05007,2025-11-02,Insurance,Notion,421.49,fixed,
+EXP05008,2025-12-02,Software Subscriptions,WeWork,1824.53,fixed,
+EXP05009,2025-12-02,Coworking / Office,Notion,2369.69,fixed,
+EXP05010,2025-12-02,Legal & Accounting,Miro,975.97,fixed,
+EXP05011,2025-12-02,Insurance,DATEV,416.86,fixed,
+EXP05012,2026-01-02,Software Subscriptions,Personio,1847.56,fixed,
+EXP05013,2026-01-02,Coworking / Office,Azure,2373.59,fixed,
+EXP05014,2026-01-02,Legal & Accounting,Allianz,953.64,fixed,
+EXP05015,2026-01-02,Insurance,Miro,431.33,fixed,
+EXP05016,2026-02-02,Software Subscriptions,AWS,1883.57,fixed,
+EXP05017,2026-02-02,Coworking / Office,Miro,2458.33,fixed,
+EXP05018,2026-02-02,Legal & Accounting,Azure,959.4,fixed,
+EXP05019,2026-02-02,Insurance,Allianz,412.28,fixed,
+EXP05020,2026-03-02,Software Subscriptions,Allianz,1851.56,fixed,
+EXP05021,2026-03-02,Coworking / Office,Slack,2380.82,fixed,
+EXP05022,2026-03-02,Legal & Accounting,DATEV,976.89,fixed,
+EXP05023,2026-03-02,Insurance,Lexoffice,415.32,fixed,
+EXP05024,2025-10-01,Cloud Infrastructure,GCP,483.72,variable,P001
+EXP05025,2025-10-08,Cloud Infrastructure,Azure,133.72,variable,P012
+EXP05026,2025-10-13,Travel,Hotel,809.95,variable,P007
+EXP05027,2025-10-15,Cloud Infrastructure,GCP,388.89,variable,P001
+EXP05028,2025-10-22,Cloud Infrastructure,AWS,510.23,variable,P011
+EXP05029,2025-10-29,Cloud Infrastructure,AWS,503.75,variable,P004
+EXP05030,2025-10-29,Contractors,Freelance Dev,526.94,variable,P007
+EXP05031,2025-10-31,Marketing,Mailchimp,596.48,variable,
+EXP05032,2025-11-05,Cloud Infrastructure,AWS,209.96,variable,P010
+EXP05033,2025-11-12,Cloud Infrastructure,GCP,367.74,variable,P004
+EXP05034,2025-11-18,Marketing,Meta Ads,93.23,variable,
+EXP05035,2025-11-19,Cloud Infrastructure,GCP,514.08,variable,
+EXP05036,2025-11-26,Cloud Infrastructure,GCP,481.51,variable,P007
+EXP05037,2025-12-01,Marketing,Canva,328.11,variable,
+EXP05038,2025-12-03,Cloud Infrastructure,AWS,195.09,variable,
+EXP05039,2025-12-10,Cloud Infrastructure,GCP,246.69,variable,P005
+EXP05040,2025-12-10,Equipment,Amazon,258.17,variable,
+EXP05041,2025-12-17,Cloud Infrastructure,Azure,211.98,variable,P003
+EXP05042,2025-12-24,Cloud Infrastructure,AWS,217.31,variable,
+EXP05043,2025-12-31,Cloud Infrastructure,Azure,479.94,variable,
+EXP05044,2026-01-05,Contractors,Freelance Dev,1017.0,variable,P008
+EXP05045,2026-01-07,Cloud Infrastructure,Azure,254.8,variable,P003
+EXP05046,2026-01-13,Marketing,Canva,409.18,variable,
+EXP05047,2026-01-14,Cloud Infrastructure,GCP,142.74,variable,
+EXP05048,2026-01-16,Marketing,Google Ads,91.01,variable,
+EXP05049,2026-01-21,Cloud Infrastructure,GCP,407.6,variable,
+EXP05050,2026-01-22,Training,Udemy,287.17,variable,
+EXP05051,2026-01-23,Contractors,Freelance DS,837.14,variable,P001
+EXP05052,2026-01-23,Training,Udemy,125.34,variable,
+EXP05053,2026-01-28,Cloud Infrastructure,GCP,184.57,variable,P007
+EXP05054,2026-02-04,Cloud Infrastructure,AWS,511.43,variable,
+EXP05055,2026-02-11,Cloud Infrastructure,GCP,355.65,variable,
+EXP05056,2026-02-11,Marketing,LinkedIn,219.77,variable,
+EXP05057,2026-02-18,Cloud Infrastructure,Azure,508.84,variable,P011
+EXP05058,2026-02-18,Training,Coursera,201.36,variable,
+EXP05059,2026-02-25,Cloud Infrastructure,Azure,401.21,variable,P004
+EXP05060,2026-03-11,Cloud Infrastructure,GCP,324.76,variable,P006
+EXP05061,2026-03-18,Cloud Infrastructure,AWS,305.0,variable,P010
+EXP05062,2026-03-25,Cloud Infrastructure,Azure,401.77,variable,P009
+EXP05063,2026-03-26,Contractors,Freelance DS,489.94,variable,P009

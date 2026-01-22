@@ -1,0 +1,13 @@
+project_id,client_name,project_name,project_type,billing_model,contract_value_eur,start_date,end_date,status,currency,country,industry
+P001,Nordlicht Retail,Data Warehouse Revamp,fixed,fixed_price,85000,2025-08-01,2025-10-31,completed,EUR,DK,Fintech
+P002,Helios Mobility,MLOps & Monitoring Retainer,retainer,monthly_retainer,18000,2025-07-01,2026-06-30,active,EUR,ES,Healthcare
+P003,Alpine Fintech,Churn Prediction Sprint,fixed,fixed_price,42000,2025-09-15,2025-11-15,completed,EUR,BE,Manufacturing
+P004,GreenGrid Energy,Automation: Billing Reconciliation,T&M,time_and_materials,0,2025-10-01,2026-01-31,active,EUR,IT,Mobility
+P005,KraftWerk Manufacturing,Computer Vision QA PoC,fixed,fixed_price,30000,2025-11-01,2025-12-20,completed,EUR,DK,Aviation
+P006,MediNova Clinics,Analytics Retainer,retainer,monthly_retainer,12000,2025-06-01,2026-05-31,active,EUR,NL,Healthcare
+P007,UrbanMart,Pricing Optimizer,fixed,fixed_price,65000,2025-10-15,2026-01-15,active,EUR,DK,Mobility
+P008,AeroPulse,Data Platform Advisory,T&M,time_and_materials,0,2025-08-15,2025-12-31,completed,EUR,BE,Manufacturing
+P009,CloudForge SaaS,RevOps Automation,fixed,fixed_price,38000,2025-12-01,2026-02-15,active,EUR,IT,Retail
+P010,BioSense Labs,Experiment Tracking Setup,fixed,fixed_price,22000,2025-07-20,2025-09-05,completed,EUR,ES,Public Sector
+P011,CityTransit,Dashboards & KPI Program,retainer,monthly_retainer,15000,2025-09-01,2026-08-31,active,EUR,BE,Healthcare
+P012,EcomSpark,Attribution Modeling,T&M,time_and_materials,0,2025-11-10,2026-03-31,active,EUR,BE,Biotech

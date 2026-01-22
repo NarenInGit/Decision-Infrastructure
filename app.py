@@ -23,6 +23,7 @@ from src.metrics import (
 )
 from src.config import DEFAULT_STARTING_CASH, UNDERUTILIZED_THRESHOLD, OVERUTILIZED_THRESHOLD
 from src.ui.risk_tab import render_risk_tab
+from src.ui.scenario_tab import render_scenario_tab
 
 # Page config
 st.set_page_config(
@@ -652,6 +653,61 @@ def page_risk_forecasts():
         st.exception(e)
 
 
+def page_scenarios_copilot():
+    """Scenarios & Copilot page."""
+    if st.session_state.data is None:
+        st.warning("⚠️ Please upload data on the Data Quality page first.")
+        return
+    
+    data = st.session_state.data
+    time_entries = data["time_entries"]
+    invoices = data["invoices"]
+    expenses = data["expenses"]
+    employees = data["employees"]
+    
+    # Compute baseline metrics outputs
+    try:
+        # Get date range
+        if len(time_entries) > 0 and len(invoices) > 0:
+            min_date = min(
+                pd.to_datetime(time_entries["date"]).min(),
+                pd.to_datetime(invoices["invoice_date"]).min()
+            )
+            max_date = max(
+                pd.to_datetime(time_entries["date"]).max(),
+                pd.to_datetime(invoices["invoice_date"]).max()
+            )
+            start_date_ts = min_date
+            end_date_ts = max_date
+        else:
+            start_date_ts = None
+            end_date_ts = None
+        
+        # Compute all metrics
+        income_statement_monthly = compute_income_statement(
+            invoices, time_entries, expenses, start_date_ts, end_date_ts
+        )
+        cashflow_monthly = compute_cashflow_statement(
+            invoices, expenses, employees,
+            st.session_state.starting_cash, start_date_ts, end_date_ts
+        )
+        projects_metrics_monthly = compute_project_metrics(time_entries, invoices, expenses, by_month=True)
+        
+        # Prepare baseline outputs
+        baseline_outputs = {
+            "projects_metrics_monthly": projects_metrics_monthly,
+            "income_statement_monthly": income_statement_monthly,
+            "cashflow_monthly": cashflow_monthly
+        }
+        
+        # Render scenario tab
+        render_scenario_tab(baseline_outputs, st.session_state.starting_cash)
+        
+    except Exception as e:
+        st.error(f"Error computing baseline metrics: {str(e)}")
+        st.exception(e)
+
+
 # Main app
 def main():
     """Main app function."""
@@ -659,7 +715,7 @@ def main():
     st.sidebar.title("Navigation")
     page = st.sidebar.radio(
         "Go to",
-        ["Overview Dashboard", "Projects", "People", "Financial Statements", "Data Quality", "Risk & Forecasts (Experimental)"]
+        ["Overview Dashboard", "Projects", "People", "Financial Statements", "Data Quality", "Risk & Forecasts (Experimental)", "Scenarios & Copilot"]
     )
     
     # Route to page
@@ -675,6 +731,8 @@ def main():
         page_data_quality()
     elif page == "Risk & Forecasts (Experimental)":
         page_risk_forecasts()
+    elif page == "Scenarios & Copilot":
+        page_scenarios_copilot()
 
 
 if __name__ == "__main__":

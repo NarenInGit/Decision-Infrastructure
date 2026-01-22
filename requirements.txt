@@ -57,3 +57,5 @@ typing_extensions==4.15.0
 tzdata==2025.3
 urllib3==2.6.3
 plotly>=5.0.0
+torch>=2.0.0
+pyarrow>=10.0.0

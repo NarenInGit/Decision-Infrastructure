@@ -1,6 +1,6 @@
 """
-Local PyTorch LLM for scenario narrative generation.
-Uses HuggingFace Transformers with a small CPU-compatible model.
+Local LLM for interpreting deterministic insights.
+AI is an interpreter, NOT a decision-maker.
 """
 
 import streamlit as st
@@ -42,128 +42,149 @@ def get_local_llm():
         return None
 
 
-def generate_scenario_memo(summary: Dict) -> str:
+def generate_insights_explanation(summary: Dict) -> str:
     """
-    Generate scenario memo using local LLM or fallback template.
+    Generate insights explanation using local LLM or fallback template.
     
     Args:
-        summary: Scenario summary dict from build_scenario_summary
+        summary: Insights summary dict from build_insights_summary
     
     Returns:
-        Formatted memo string
+        Plain text explanation
     """
-    model = get_local_llm()
+    llm = get_local_llm()
     
-    if model is None:
-        return generate_fallback_memo(summary)
-    
-    # Build prompt
-    prompt = build_prompt(summary)
+    if llm is None:
+        return generate_fallback_explanation(summary)
     
     try:
-        # Generate with LLM
-        result = model(prompt, max_length=500, do_sample=False, temperature=0.3)
-        generated_text = result[0]["generated_text"]
+        prompt = build_interpretation_prompt(summary)
+        result = llm(prompt, max_length=500, do_sample=False)
         
-        # Format output
-        return format_memo(generated_text, summary)
+        if result and len(result) > 0 and "generated_text" in result[0]:
+            explanation = result[0]["generated_text"].strip()
+            # Validate explanation doesn't contain forbidden language
+            if _contains_forbidden_language(explanation):
+                st.warning("AI explanation contained prediction language. Using fallback.")
+                return generate_fallback_explanation(summary)
+            return explanation
+        else:
+            return generate_fallback_explanation(summary)
     except Exception as e:
-        print(f"Error generating memo: {e}")
-        return generate_fallback_memo(summary)
+        st.warning(f"Error generating AI explanation: {e}. Using fallback.")
+        return generate_fallback_explanation(summary)
 
 
-def build_prompt(summary: Dict) -> str:
-    """Build prompt for LLM."""
-    kpis = summary["headline_kpis"]
+def build_interpretation_prompt(summary: Dict) -> str:
+    """
+    Build prompt for AI interpretation.
     
-    prompt = f"""Write a structured memo analyzing a financial scenario.
-
-Scenario: {summary['scenario_name']}
-Start Month: {summary['start_month']}
-
-Changes:
-{chr(10).join(f"- {c['type']}: {json.dumps(c)}" for c in summary['changes'])}
+    Rules:
+    - AI must ONLY explain what the data shows
+    - AI must NEVER predict, forecast, or assign probabilities
+    - AI must NEVER recommend specific actions
+    - AI must use factual language only
+    """
+    key_metrics = summary.get("key_metrics", {})
+    insights_by_severity = summary.get("insights_by_severity", {})
+    summary_counts = summary.get("summary_counts", {})
+    
+    prompt = f"""Explain the following financial insights in plain English. Use only factual language. Do not predict or recommend actions.
 
 Key Metrics:
-- Revenue: €{kpis['revenue_total']['before']:,.0f} → €{kpis['revenue_total']['after']:,.0f} (Δ€{kpis['revenue_total']['delta']:,.0f})
-- EBITDA: €{kpis['ebitda_total']['before']:,.0f} → €{kpis['ebitda_total']['after']:,.0f} (Δ€{kpis['ebitda_total']['delta']:,.0f})
-- Ending Cash: €{kpis['ending_cash']['before']:,.0f} → €{kpis['ending_cash']['after']:,.0f} (Δ€{kpis['ending_cash']['delta']:,.0f})
-- Runway: {kpis['runway_months']['before']:.1f} → {kpis['runway_months']['after']:.1f} months
+- Total Revenue: €{key_metrics.get('revenue_total', 0):,.0f}
+- EBITDA: €{key_metrics.get('ebitda_total', 0):,.0f}
+- Ending Cash: €{key_metrics.get('ending_cash', 0):,.0f}
+- Runway: {key_metrics.get('runway_months', 0):.1f} months
 
-Top Winners (by gross profit improvement):
-{chr(10).join(f"- {p['project_id']}: Δ€{p['gross_profit_delta']:,.0f}" for p in summary['top_winners'][:3])}
+Insights Summary:
+- Critical issues: {summary_counts.get('critical', 0)}
+- Warnings: {summary_counts.get('warning', 0)}
+- Info: {summary_counts.get('info', 0)}
 
-High Risk Projects (negative margin):
-{chr(10).join(f"- {p['project_id']}: {p['gross_margin_pct']:.1%}" for p in summary['high_risk_projects'][:3])}
+Critical Issues:
+"""
+    
+    for insight in insights_by_severity.get("critical", [])[:5]:
+        prompt += f"- {insight['message']}\n"
+    
+    prompt += "\nWarnings:\n"
+    for insight in insights_by_severity.get("warning", [])[:5]:
+        prompt += f"- {insight['message']}\n"
+    
+    prompt += """
+Explain what these insights indicate about the current financial state. Use phrases like:
+- "This indicates..."
+- "This is driven by..."
+- "Currently, the data shows..."
 
-Key Drivers:
-{chr(10).join(f"- {d}" for d in summary['key_drivers'])}
-
-Write a memo with:
-Title
-1) What changed (bullets)
-2) Impact (bullets with numbers)
-3) Risks / assumptions (bullets)
-4) Recommended next actions (bullets, concrete)
-
-IMPORTANT: Only use the numbers provided above. Do not invent numbers."""
+Do NOT use:
+- "Will likely..."
+- "Expected to..."
+- "Probability of..."
+- "You should..."
+"""
     
     return prompt
 
 
-def format_memo(generated_text: str, summary: Dict) -> str:
-    """Format generated text into memo structure."""
-    # If LLM output is good, use it; otherwise enhance with template
-    memo = f"# {summary['scenario_name']}\n\n"
-    memo += generated_text
+def generate_fallback_explanation(summary: Dict) -> str:
+    """
+    Generate deterministic fallback explanation.
+    """
+    key_metrics = summary.get("key_metrics", {})
+    insights_by_severity = summary.get("insights_by_severity", {})
+    summary_counts = summary.get("summary_counts", {})
     
-    return memo
+    explanation = "## Financial Insights Summary\n\n"
+    
+    # Key metrics
+    explanation += "### Current Financial Position\n"
+    explanation += f"- **Total Revenue**: €{key_metrics.get('revenue_total', 0):,.0f}\n"
+    explanation += f"- **EBITDA**: €{key_metrics.get('ebitda_total', 0):,.0f}\n"
+    explanation += f"- **Ending Cash**: €{key_metrics.get('ending_cash', 0):,.0f}\n"
+    explanation += f"- **Runway**: {key_metrics.get('runway_months', 0):.1f} months\n\n"
+    
+    # Critical issues
+    critical = insights_by_severity.get("critical", [])
+    if critical:
+        explanation += "### Critical Issues\n"
+        for insight in critical[:5]:
+            explanation += f"- {insight['message']}\n"
+        explanation += "\n"
+    
+    # Warnings
+    warnings = insights_by_severity.get("warning", [])
+    if warnings:
+        explanation += "### Warnings\n"
+        for insight in warnings[:5]:
+            explanation += f"- {insight['message']}\n"
+        explanation += "\n"
+    
+    # Summary
+    explanation += "### Summary\n"
+    explanation += f"The analysis identified {summary_counts.get('total_insights', 0)} insights: "
+    explanation += f"{summary_counts.get('critical', 0)} critical issues, "
+    explanation += f"{summary_counts.get('warning', 0)} warnings, and "
+    explanation += f"{summary_counts.get('info', 0)} informational items.\n"
+    
+    return explanation
 
 
-def generate_fallback_memo(summary: Dict) -> str:
+def _contains_forbidden_language(text: str) -> bool:
     """
-    Generate deterministic fallback memo without LLM.
-    
-    Args:
-        summary: Scenario summary dict
-    
-    Returns:
-        Formatted memo string
+    Check if text contains forbidden prediction/recommendation language.
     """
-    kpis = summary["headline_kpis"]
-    
-    memo = f"# {summary['scenario_name']}\n\n"
-    memo += f"**Start Month:** {summary['start_month']}\n\n"
-    
-    memo += "## 1) What Changed\n\n"
-    for driver in summary["key_drivers"]:
-        memo += f"- {driver}\n"
-    
-    memo += "\n## 2) Impact\n\n"
-    memo += f"- **Revenue:** €{kpis['revenue_total']['before']:,.0f} → €{kpis['revenue_total']['after']:,.0f} "
-    memo += f"(Δ€{kpis['revenue_total']['delta']:+,.0f})\n"
-    memo += f"- **EBITDA:** €{kpis['ebitda_total']['before']:,.0f} → €{kpis['ebitda_total']['after']:,.0f} "
-    memo += f"(Δ€{kpis['ebitda_total']['delta']:+,.0f})\n"
-    memo += f"- **Ending Cash:** €{kpis['ending_cash']['before']:,.0f} → €{kpis['ending_cash']['after']:,.0f} "
-    memo += f"(Δ€{kpis['ending_cash']['delta']:+,.0f})\n"
-    
-    if kpis['runway_months']['before'] is not None and kpis['runway_months']['after'] is not None:
-        memo += f"- **Runway:** {kpis['runway_months']['before']:.1f} → {kpis['runway_months']['after']:.1f} months "
-        if kpis['runway_months']['delta'] is not None:
-            memo += f"(Δ{kpis['runway_months']['delta']:+.1f} months)\n"
-    
-    memo += "\n## 3) Risks / Assumptions\n\n"
-    if summary["high_risk_projects"]:
-        memo += "- Projects with negative margins in scenario:\n"
-        for p in summary["high_risk_projects"][:5]:
-            memo += f"  - {p['project_id']}: {p['gross_margin_pct']:.1%} margin\n"
-    else:
-        memo += "- No projects with negative margins identified.\n"
-    
-    memo += "\n## 4) Recommended Next Actions\n\n"
-    memo += "- Review top winners and losers to understand project-level impacts\n"
-    memo += "- Monitor high-risk projects closely\n"
-    memo += "- Validate assumptions underlying scenario changes\n"
-    memo += "- Consider additional scenario variations\n"
-    
-    return memo
+    forbidden_phrases = [
+        "will likely",
+        "expected to",
+        "probability",
+        "you should",
+        "you must",
+        "recommend",
+        "suggest",
+        "forecast",
+        "predict"
+    ]
+    text_lower = text.lower()
+    return any(phrase in text_lower for phrase in forbidden_phrases)

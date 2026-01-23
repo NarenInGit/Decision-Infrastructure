@@ -46,13 +46,22 @@ def compute_project_metrics(
     """
     daily_cost = compute_daily_time_cost(time_entries)
     
-    # Project-level aggregations
-    project_time = daily_cost.groupby("project_id").agg({
-        "billable_hours": "sum",
-        "hours_logged": "sum",
-        "labor_cost_eur": "sum"
-    }).reset_index()
-    project_time.columns = ["project_id", "billable_hours", "total_hours", "labor_cost"]
+    # Project-level aggregations (by month if requested)
+    if by_month:
+        daily_cost["month"] = pd.to_datetime(daily_cost["date"]).dt.to_period("M")
+        project_time = daily_cost.groupby(["project_id", "month"]).agg({
+            "billable_hours": "sum",
+            "hours_logged": "sum",
+            "labor_cost_eur": "sum"
+        }).reset_index()
+        project_time.columns = ["project_id", "month", "billable_hours", "total_hours", "labor_cost"]
+    else:
+        project_time = daily_cost.groupby("project_id").agg({
+            "billable_hours": "sum",
+            "hours_logged": "sum",
+            "labor_cost_eur": "sum"
+        }).reset_index()
+        project_time.columns = ["project_id", "billable_hours", "total_hours", "labor_cost"]
     
     # Revenue by project (and optionally by month)
     if by_month:
@@ -77,10 +86,14 @@ def compute_project_metrics(
     
     # Merge
     if by_month:
-        result = project_time.merge(revenue, on="project_id", how="outer")
+        # Merge project_time with revenue on both project_id and month
+        result = project_time.merge(revenue, on=["project_id", "month"], how="outer")
         result = result.merge(allocated_exp, on=["project_id", "month"], how="outer")
         result["allocated_expenses"] = result["allocated_expenses"].fillna(0)
         result["revenue"] = result["revenue"].fillna(0)
+        result["labor_cost"] = result["labor_cost"].fillna(0)
+        result["billable_hours"] = result["billable_hours"].fillna(0)
+        result["total_hours"] = result["total_hours"].fillna(0)
     else:
         result = project_time.merge(revenue, on="project_id", how="outer")
         result = result.merge(allocated_exp, on="project_id", how="outer")

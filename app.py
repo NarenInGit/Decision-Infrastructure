@@ -22,8 +22,7 @@ from src.metrics import (
     compute_runway
 )
 from src.config import DEFAULT_STARTING_CASH, UNDERUTILIZED_THRESHOLD, OVERUTILIZED_THRESHOLD
-from src.ui.risk_tab import render_risk_tab
-from src.ui.scenario_tab import render_scenario_tab
+from src.ui.insights_tab import render_insights_tab
 
 # Page config
 st.set_page_config(
@@ -298,11 +297,15 @@ def page_projects():
             
             # Team contribution
             st.write("**Team Contribution**")
-            project_time = time_entries[time_entries["project_id"] == selected_project_id]
+            project_time = time_entries[time_entries["project_id"] == selected_project_id].copy()
             if len(project_time) > 0:
+                # Ensure labor cost column exists (time_entries may only have hourly_cost_eur)
+                if "labor_cost_eur" not in project_time.columns and "hourly_cost_eur" in project_time.columns:
+                    project_time["labor_cost_eur"] = project_time["hours_logged"] * project_time["hourly_cost_eur"]
+
                 team_contrib = project_time.groupby("employee_id").agg({
                     "hours_logged": "sum",
-                    "labor_cost_eur": lambda x: (x * project_time.loc[x.index, "hours_logged"]).sum()
+                    "labor_cost_eur": "sum"
                 }).reset_index()
                 team_contrib.columns = ["employee_id", "hours", "cost"]
                 
@@ -593,8 +596,8 @@ def page_data_quality():
         st.rerun()
 
 
-def page_risk_forecasts():
-    """Risk & Forecasts (Experimental) page."""
+def page_insights():
+    """Insights & Explanations page."""
     if st.session_state.data is None:
         st.warning("⚠️ Please upload data on the Data Quality page first.")
         return
@@ -605,67 +608,7 @@ def page_risk_forecasts():
     expenses = data["expenses"]
     employees = data["employees"]
     
-    # Compute metrics outputs (reuse existing logic)
-    try:
-        # Get date range from overview if available, otherwise use full range
-        if len(time_entries) > 0 and len(invoices) > 0:
-            min_date = min(
-                pd.to_datetime(time_entries["date"]).min(),
-                pd.to_datetime(invoices["invoice_date"]).min()
-            )
-            max_date = max(
-                pd.to_datetime(time_entries["date"]).max(),
-                pd.to_datetime(invoices["invoice_date"]).max()
-            )
-            start_date_ts = min_date
-            end_date_ts = max_date
-        else:
-            start_date_ts = None
-            end_date_ts = None
-        
-        # Compute all metrics
-        income_statement_monthly = compute_income_statement(
-            invoices, time_entries, expenses, start_date_ts, end_date_ts
-        )
-        cashflow_monthly = compute_cashflow_statement(
-            invoices, expenses, employees,
-            st.session_state.starting_cash, start_date_ts, end_date_ts
-        )
-        projects_metrics = compute_project_metrics(time_entries, invoices, expenses, by_month=True)
-        people_utilization = compute_employee_utilization(time_entries, employees, by_month=True)
-        
-        # Prepare metrics outputs
-        metrics_outputs = {
-            "income_statement_monthly": income_statement_monthly,
-            "cashflow_monthly": cashflow_monthly,
-            "projects_metrics": projects_metrics,
-            "people_utilization": people_utilization,
-            "time_entries": time_entries,
-            "invoices": invoices,
-            "expenses": expenses
-        }
-        
-        # Render risk tab
-        render_risk_tab(metrics_outputs)
-        
-    except Exception as e:
-        st.error(f"Error computing metrics: {str(e)}")
-        st.exception(e)
-
-
-def page_scenarios_copilot():
-    """Scenarios & Copilot page."""
-    if st.session_state.data is None:
-        st.warning("⚠️ Please upload data on the Data Quality page first.")
-        return
-    
-    data = st.session_state.data
-    time_entries = data["time_entries"]
-    invoices = data["invoices"]
-    expenses = data["expenses"]
-    employees = data["employees"]
-    
-    # Compute baseline metrics outputs
+    # Compute metrics outputs
     try:
         # Get date range
         if len(time_entries) > 0 and len(invoices) > 0:
@@ -691,20 +634,26 @@ def page_scenarios_copilot():
             invoices, expenses, employees,
             st.session_state.starting_cash, start_date_ts, end_date_ts
         )
+        projects_metrics = compute_project_metrics(time_entries, invoices, expenses, by_month=False)
         projects_metrics_monthly = compute_project_metrics(time_entries, invoices, expenses, by_month=True)
+        employee_utilization = compute_employee_utilization(time_entries, employees, by_month=False)
+        runway_months = compute_runway(cashflow_monthly, st.session_state.starting_cash)
         
-        # Prepare baseline outputs
-        baseline_outputs = {
+        # Prepare metrics outputs
+        metrics_outputs = {
+            "projects_metrics": projects_metrics,
             "projects_metrics_monthly": projects_metrics_monthly,
+            "employee_utilization": employee_utilization,
             "income_statement_monthly": income_statement_monthly,
-            "cashflow_monthly": cashflow_monthly
+            "cashflow_monthly": cashflow_monthly,
+            "runway_months": runway_months
         }
         
-        # Render scenario tab
-        render_scenario_tab(baseline_outputs, st.session_state.starting_cash)
+        # Render insights tab
+        render_insights_tab(metrics_outputs, data, st.session_state.starting_cash)
         
     except Exception as e:
-        st.error(f"Error computing baseline metrics: {str(e)}")
+        st.error(f"Error computing metrics: {str(e)}")
         st.exception(e)
 
 
@@ -715,7 +664,7 @@ def main():
     st.sidebar.title("Navigation")
     page = st.sidebar.radio(
         "Go to",
-        ["Overview Dashboard", "Projects", "People", "Financial Statements", "Data Quality", "Risk & Forecasts (Experimental)", "Scenarios & Copilot"]
+        ["Overview Dashboard", "Projects", "People", "Financial Statements", "Insights & Explanations", "Data Quality"]
     )
     
     # Route to page
@@ -727,12 +676,10 @@ def main():
         page_people()
     elif page == "Financial Statements":
         page_financial_statements()
+    elif page == "Insights & Explanations":
+        page_insights()
     elif page == "Data Quality":
         page_data_quality()
-    elif page == "Risk & Forecasts (Experimental)":
-        page_risk_forecasts()
-    elif page == "Scenarios & Copilot":
-        page_scenarios_copilot()
 
 
 if __name__ == "__main__":

@@ -8,6 +8,36 @@ import pandas as pd
 from typing import Dict, List
 
 
+def build_chat_summary(user_query: str, deterministic_answer: Dict) -> Dict:
+    """
+    Build compact summary for AI chat rewriting.
+    
+    Args:
+        user_query: User's question
+        deterministic_answer: Deterministic answer dict with:
+            - final_answer: str
+            - facts_used: List[str]
+            - matched_insights: List[str]
+            - followups: List[str]
+    
+    Returns:
+        Dictionary with query, deterministic content, and rules
+    """
+    return {
+        "user_query": user_query,
+        "deterministic_answer": deterministic_answer["final_answer"],
+        "facts_used": deterministic_answer["facts_used"],
+        "matched_insights": deterministic_answer["matched_insights"],
+        "followups": deterministic_answer["followups"],
+        "rules": [
+            "Use ONLY the provided facts_used values - do not add, modify, or invent numbers",
+            "Keep the answer concise and structured",
+            "Do not predict, forecast, or recommend specific actions",
+            "Only interpret what the existing data shows"
+        ]
+    }
+
+
 def build_insights_summary(
     insights: List[Dict],
     key_metrics: Dict

@@ -42,6 +42,65 @@ def get_local_llm():
         return None
 
 
+def rewrite_answer(summary: Dict) -> str:
+    """
+    Rewrite deterministic answer using LLM (optional phrasing only).
+    
+    Args:
+        summary: Chat summary dict from build_chat_summary
+    
+    Returns:
+        Rewritten answer (or original if LLM fails/unavailable)
+    """
+    llm = get_local_llm()
+    
+    if llm is None:
+        return summary["deterministic_answer"]
+    
+    try:
+        prompt = _build_chat_rewrite_prompt(summary)
+        result = llm(prompt, max_length=500, do_sample=False)
+        
+        if result and len(result) > 0 and "generated_text" in result[0]:
+            rewritten = result[0]["generated_text"].strip()
+            # Validate no forbidden language
+            if _contains_forbidden_language(rewritten):
+                return summary["deterministic_answer"]
+            return rewritten
+        else:
+            return summary["deterministic_answer"]
+    except Exception:
+        return summary["deterministic_answer"]
+
+
+def _build_chat_rewrite_prompt(summary: Dict) -> str:
+    """Build prompt for chat answer rewriting."""
+    prompt = f"""Rewrite this answer using the provided facts. Do not add or change any numbers.
+
+User asked: {summary['user_query']}
+
+Original answer:
+{summary['deterministic_answer']}
+
+Facts to use (do not modify these):
+"""
+    
+    for fact in summary['facts_used']:
+        prompt += f"- {fact}\n"
+    
+    prompt += """
+Rules:
+- Use ONLY the facts provided above
+- Do not add, modify, or invent numbers
+- Keep it concise and clear
+- Do not predict or recommend actions
+- Only explain what the data shows
+
+Rewrite the answer:"""
+    
+    return prompt
+
+
 def generate_insights_explanation(summary: Dict) -> str:
     """
     Generate insights explanation using local LLM or fallback template.

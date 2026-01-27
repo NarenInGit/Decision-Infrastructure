@@ -23,6 +23,7 @@ from src.metrics import (
 )
 from src.config import DEFAULT_STARTING_CASH, UNDERUTILIZED_THRESHOLD, OVERUTILIZED_THRESHOLD
 from src.ui.insights_tab import render_insights_tab
+from src.ui.projects_page import render_projects_page
 
 # Page config
 st.set_page_config(
@@ -196,134 +197,21 @@ def page_overview():
 
 
 def page_projects():
-    """Projects page."""
-    st.title("📁 Projects")
-    
+    """Projects page - Refactored for decision-oriented UX."""
     if st.session_state.data is None:
         st.error("No data loaded.")
         return
     
     data = st.session_state.data
-    projects = data["projects"]
     time_entries = data["time_entries"]
     invoices = data["invoices"]
     expenses = data["expenses"]
     
-    # Filters
-    st.sidebar.subheader("Filters")
+    # Compute overall project metrics
+    projects_metrics = compute_project_metrics(time_entries, invoices, expenses, by_month=False)
     
-    clients = ["All"] + sorted(projects["client_name"].unique().tolist())
-    selected_client = st.sidebar.selectbox("Client", clients)
-    
-    statuses = ["All"] + sorted(projects["status"].unique().tolist())
-    selected_status = st.sidebar.selectbox("Status", statuses)
-    
-    billing_models = ["All"] + sorted(projects["billing_model"].unique().tolist())
-    selected_billing = st.sidebar.selectbox("Billing Model", billing_models)
-    
-    countries = ["All"] + sorted(projects["country"].unique().tolist())
-    selected_country = st.sidebar.selectbox("Country", countries)
-    
-    industries = ["All"] + sorted(projects["industry"].unique().tolist())
-    selected_industry = st.sidebar.selectbox("Industry", industries)
-    
-    # Filter projects
-    filtered_projects = projects.copy()
-    if selected_client != "All":
-        filtered_projects = filtered_projects[filtered_projects["client_name"] == selected_client]
-    if selected_status != "All":
-        filtered_projects = filtered_projects[filtered_projects["status"] == selected_status]
-    if selected_billing != "All":
-        filtered_projects = filtered_projects[filtered_projects["billing_model"] == selected_billing]
-    if selected_country != "All":
-        filtered_projects = filtered_projects[filtered_projects["country"] == selected_country]
-    if selected_industry != "All":
-        filtered_projects = filtered_projects[filtered_projects["industry"] == selected_industry]
-    
-    # Compute project metrics
-    project_metrics = compute_project_metrics(time_entries, invoices, expenses)
-    
-    # Merge with project details
-    project_display = filtered_projects.merge(project_metrics, on="project_id", how="left")
-    
-    # Display table
-    st.subheader("Projects")
-    display_cols = ["project_id", "client_name", "project_name", "status", "billing_model",
-                    "revenue", "labor_cost", "allocated_expenses", "gross_profit", "gross_margin_pct",
-                    "billable_hours", "effective_hourly_rate"]
-    
-    available_cols = [col for col in display_cols if col in project_display.columns]
-    st.dataframe(
-        project_display[available_cols].style.format({
-            "revenue": "€{:,.0f}",
-            "labor_cost": "€{:,.0f}",
-            "allocated_expenses": "€{:,.0f}",
-            "gross_profit": "€{:,.0f}",
-            "gross_margin_pct": "{:.1%}",
-            "billable_hours": "{:.1f}",
-            "effective_hourly_rate": "€{:.2f}"
-        }),
-        use_container_width=True,
-        height=400
-    )
-    
-    # Project detail view
-    st.subheader("Project Detail")
-    project_ids = ["Select a project"] + sorted(filtered_projects["project_id"].unique().tolist())
-    selected_project_id = st.selectbox("Select Project", project_ids)
-    
-    if selected_project_id != "Select a project":
-        # Monthly trend
-        project_monthly = compute_project_metrics(time_entries, invoices, expenses, by_month=True)
-        project_monthly = project_monthly[project_monthly["project_id"] == selected_project_id]
-        
-        if len(project_monthly) > 0:
-            st.write(f"**Monthly Trend for {selected_project_id}**")
-            project_monthly_display = project_monthly.copy()
-            project_monthly_display["month"] = project_monthly_display["month"].astype(str)
-            
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=project_monthly_display["month"], y=project_monthly_display["revenue"],
-                                    mode='lines+markers', name='Revenue', line=dict(color='green')))
-            fig.add_trace(go.Scatter(x=project_monthly_display["month"], y=project_monthly_display["labor_cost"],
-                                    mode='lines+markers', name='Labor Cost', line=dict(color='red')))
-            fig.add_trace(go.Scatter(x=project_monthly_display["month"], y=project_monthly_display["allocated_expenses"],
-                                    mode='lines+markers', name='Allocated Expenses', line=dict(color='orange')))
-            fig.add_trace(go.Scatter(x=project_monthly_display["month"], y=project_monthly_display["gross_profit"],
-                                    mode='lines+markers', name='Gross Profit', line=dict(color='blue')))
-            fig.update_layout(title=f"Monthly Trend: {selected_project_id}", xaxis_title="Month", yaxis_title="EUR",
-                            hovermode='x unified')
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Team contribution
-            st.write("**Team Contribution**")
-            project_time = time_entries[time_entries["project_id"] == selected_project_id].copy()
-            if len(project_time) > 0:
-                # Ensure labor cost column exists (time_entries may only have hourly_cost_eur)
-                if "labor_cost_eur" not in project_time.columns and "hourly_cost_eur" in project_time.columns:
-                    project_time["labor_cost_eur"] = project_time["hours_logged"] * project_time["hourly_cost_eur"]
-
-                team_contrib = project_time.groupby("employee_id").agg({
-                    "hours_logged": "sum",
-                    "labor_cost_eur": "sum"
-                }).reset_index()
-                team_contrib.columns = ["employee_id", "hours", "cost"]
-                
-                # Merge with employees
-                employees = data["employees"]
-                team_contrib = team_contrib.merge(
-                    employees[["employee_id", "job_title", "department"]],
-                    on="employee_id",
-                    how="left"
-                )
-                
-                st.dataframe(
-                    team_contrib.style.format({
-                        "hours": "{:.1f}",
-                        "cost": "€{:,.0f}"
-                    }),
-                    use_container_width=True
-                )
+    # Render the refactored projects page
+    render_projects_page(data, projects_metrics)
 
 
 def page_people():

@@ -26,6 +26,12 @@ from src.ui.insights_tab import render_insights_tab
 from src.ui.projects_page import render_projects_page
 from src.ui.briefs_tab import render_briefs_tab
 
+# ============================================================
+# DEMO MODE: Temporarily hide some pages for expert demo
+# To revert and show all pages: Set DEMO_MODE = False
+# ============================================================
+DEMO_MODE = True
+
 # Page config
 st.set_page_config(
     page_title="Decision Infrastructure",
@@ -612,9 +618,16 @@ def main():
     """Main app function."""
     # Sidebar navigation
     st.sidebar.title("Navigation")
+    
+    # Demo mode: show only selected pages
+    if DEMO_MODE:
+        available_pages = ["Overview Dashboard", "Projects", "Insights & Explanations"]
+    else:
+        available_pages = ["Overview Dashboard", "Projects", "People", "Financial Statements", "Weekly Brief", "Insights & Explanations", "Data Quality"]
+    
     page = st.sidebar.radio(
         "Go to",
-        ["Overview Dashboard", "Projects", "People", "Financial Statements", "Weekly Brief", "Insights & Explanations", "Data Quality"]
+        available_pages
     )
     
     # Route to page

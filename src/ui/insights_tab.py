@@ -10,7 +10,8 @@ from datetime import datetime
 from ..core.insights_engine import generate_insights
 from ..core.insights_chat import parse_intent, retrieve_context, build_deterministic_answer
 from ..ai.summary_builder import build_chat_summary, build_insights_summary
-from ..ai.local_llm import rewrite_answer, generate_insights_explanation
+from ..ai.local_llm import rewrite_answer, generate_insights_explanation, generate_narrative
+from ..ai.guardrails import apply_guardrails, check_transformers_available
 
 
 def render_insights_tab(
@@ -47,14 +48,20 @@ def render_insights_tab(
     st.title("💬 Ask Your Data")
     st.caption("Chat with your financial metrics - all answers grounded in deterministic data (no predictions).")
     
-    # AI phrasing toggle
-    use_ai_phrasing = st.checkbox(
-        "Use AI phrasing (optional)",
-        value=st.session_state.get("use_ai_phrasing", False),
-        help="Let AI rephrase answers (numbers stay the same)",
-        key="ai_phrasing_toggle"
-    )
-    st.session_state.use_ai_phrasing = use_ai_phrasing
+    # AI phrasing toggle (only if transformers available)
+    transformers_available = check_transformers_available()
+    
+    if transformers_available:
+        use_ai_phrasing = st.checkbox(
+            "Use AI phrasing (optional)",
+            value=st.session_state.get("use_ai_phrasing", False),
+            help="Let AI rephrase answers (numbers stay the same)",
+            key="ai_phrasing_toggle"
+        )
+        st.session_state.use_ai_phrasing = use_ai_phrasing
+    else:
+        st.session_state.use_ai_phrasing = False
+        st.caption("⚠️ AI phrasing disabled (transformers not installed). Using deterministic answers.")
     
     st.divider()
     
@@ -158,10 +165,22 @@ def _handle_user_query(query: str, metrics_outputs: Dict, insights_list: List[Di
     # Build deterministic answer
     deterministic_answer = build_deterministic_answer(query, context, intent)
     
-    # Optional AI rewriting
+    # Optional AI rewriting with guardrails
     if st.session_state.use_ai_phrasing:
         chat_summary = build_chat_summary(query, deterministic_answer)
-        final_text = rewrite_answer(chat_summary)
+        llm_output = rewrite_answer(chat_summary)
+        
+        # Apply guardrails
+        final_text, was_blocked, block_reason = apply_guardrails(
+            llm_output,
+            deterministic_answer["final_answer"],
+            deterministic_answer["facts_used"],
+            strict=True
+        )
+        
+        # Store block info in metadata
+        if was_blocked:
+            st.warning(f"⚠️ AI output blocked ({block_reason}). Showing deterministic version.")
     else:
         final_text = deterministic_answer["final_answer"]
     
@@ -255,21 +274,27 @@ def _render_browse_mode(insights_list: List[Dict], metrics_outputs: Dict, starti
         
         st.divider()
         
-        # AI explanation (optional)
-        with st.expander("🤖 AI Explanation (optional)", expanded=False):
-            st.caption("Generated from pre-calculated metrics. No predictions. No new numbers.")
-            
-            if st.button("Generate AI Explanation for All Insights"):
-                key_metrics = _extract_key_metrics(metrics_outputs, starting_cash)
-                summary = build_insights_summary(insights_list, key_metrics)
+        # AI explanation (optional) - only if transformers available
+        if check_transformers_available():
+            with st.expander("🤖 AI Explanation (optional)", expanded=False):
+                st.caption("Generated from pre-calculated metrics. No predictions. No new numbers.")
                 
-                with st.spinner("Generating explanation..."):
-                    explanation = generate_insights_explanation(summary)
-                    st.session_state["insights_explanation_all"] = explanation
-            
-            if "insights_explanation_all" in st.session_state:
-                st.divider()
-                st.markdown(st.session_state["insights_explanation_all"])
+                if st.button("Generate AI Explanation for All Insights"):
+                    key_metrics = _extract_key_metrics(metrics_outputs, starting_cash)
+                    summary = build_insights_summary(insights_list, key_metrics)
+                    
+                    with st.spinner("Generating explanation..."):
+                        explanation = generate_insights_explanation(summary)
+                        st.session_state["insights_explanation_all"] = explanation
+                
+                if "insights_explanation_all" in st.session_state:
+                    st.divider()
+                    st.markdown(st.session_state["insights_explanation_all"])
+        
+        st.divider()
+        
+        # Narrative generator
+        _render_narrative_generator(insights_list, metrics_outputs, starting_cash)
 
 
 def _render_category_list(insights: List[Dict], category_name: str):
@@ -285,6 +310,70 @@ def _render_category_list(insights: List[Dict], category_name: str):
     
     if len(insights) > 5:
         st.caption(f"... and {len(insights) - 5} more")
+
+
+def _render_narrative_generator(insights_list: List[Dict], metrics_outputs: Dict, starting_cash: float):
+    """Render narrative generator for copy-ready summaries."""
+    with st.expander("📤 Generate Copy-Ready Narrative", expanded=False):
+        st.caption("Create summaries for co-founders, clients, or investors. Uses only computed data.")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("📱 Slack Update", key="narrative_slack", use_container_width=True):
+                key_metrics = _extract_key_metrics(metrics_outputs, starting_cash)
+                summary = build_insights_summary(insights_list, key_metrics)
+                
+                if check_transformers_available():
+                    with st.spinner("Generating narrative..."):
+                        narrative = generate_narrative(summary, format="slack")
+                else:
+                    from ..ai.local_llm import _generate_fallback_narrative
+                    narrative = _generate_fallback_narrative(summary, format="slack")
+                
+                st.session_state["generated_narrative"] = narrative
+                st.session_state["narrative_format"] = "Slack"
+        
+        with col2:
+            if st.button("📧 Email Memo", key="narrative_email", use_container_width=True):
+                key_metrics = _extract_key_metrics(metrics_outputs, starting_cash)
+                summary = build_insights_summary(insights_list, key_metrics)
+                
+                if check_transformers_available():
+                    with st.spinner("Generating narrative..."):
+                        narrative = generate_narrative(summary, format="email")
+                else:
+                    from ..ai.local_llm import _generate_fallback_narrative
+                    narrative = _generate_fallback_narrative(summary, format="email")
+                
+                st.session_state["generated_narrative"] = narrative
+                st.session_state["narrative_format"] = "Email"
+        
+        with col3:
+            if st.button("📊 Investor Note", key="narrative_investor", use_container_width=True):
+                key_metrics = _extract_key_metrics(metrics_outputs, starting_cash)
+                summary = build_insights_summary(insights_list, key_metrics)
+                
+                if check_transformers_available():
+                    with st.spinner("Generating narrative..."):
+                        narrative = generate_narrative(summary, format="investor")
+                else:
+                    from ..ai.local_llm import _generate_fallback_narrative
+                    narrative = _generate_fallback_narrative(summary, format="investor")
+                
+                st.session_state["generated_narrative"] = narrative
+                st.session_state["narrative_format"] = "Investor"
+        
+        # Display generated narrative
+        if "generated_narrative" in st.session_state:
+            st.divider()
+            st.markdown(f"**{st.session_state['narrative_format']} Narrative:**")
+            
+            with st.container():
+                st.code(st.session_state["generated_narrative"], language="markdown")
+            
+            st.caption("_Generated from computed data; no predictions. Copy and paste as needed._")
+            st.caption("_Disclaimer: AI-generated content has been validated for forbidden language/numbers._")
 
 
 def _extract_key_metrics(metrics_outputs: Dict, starting_cash: float) -> Dict:

@@ -230,6 +230,113 @@ def generate_fallback_explanation(summary: Dict) -> str:
     return explanation
 
 
+def generate_narrative(
+    summary: Dict,
+    format: str = "email"
+) -> str:
+    """
+    Generate copy-ready narrative for sharing.
+    
+    Args:
+        summary: Insights summary or chat summary dict
+        format: "slack", "email", or "investor"
+    
+    Returns:
+        Narrative text
+    """
+    llm = get_local_llm()
+    
+    if llm is None:
+        return _generate_fallback_narrative(summary, format)
+    
+    try:
+        prompt = _build_narrative_prompt(summary, format)
+        result = llm(prompt, max_length=600, do_sample=False)
+        
+        if result and len(result) > 0 and "generated_text" in result[0]:
+            narrative = result[0]["generated_text"].strip()
+            # Validate
+            if _contains_forbidden_language(narrative):
+                return _generate_fallback_narrative(summary, format)
+            return narrative
+        else:
+            return _generate_fallback_narrative(summary, format)
+    except Exception:
+        return _generate_fallback_narrative(summary, format)
+
+
+def _build_narrative_prompt(summary: Dict, format: str) -> str:
+    """Build prompt for narrative generation."""
+    key_metrics = summary.get("key_metrics", {})
+    insights_by_severity = summary.get("insights_by_severity", {})
+    
+    if format == "slack":
+        prompt = f"""Write a brief Slack update about the financial status. Use only the facts below.
+
+Facts:
+- Revenue: €{key_metrics.get('revenue_total', 0):,.0f}
+- EBITDA: €{key_metrics.get('ebitda_total', 0):,.0f}
+- Cash: €{key_metrics.get('ending_cash', 0):,.0f}
+- Runway: {key_metrics.get('runway_months', 0):.1f} months
+
+Critical issues: {len(insights_by_severity.get('critical', []))}
+Warnings: {len(insights_by_severity.get('warning', []))}
+
+Write a 3-sentence update. Be factual, not predictive.
+"""
+    elif format == "investor":
+        prompt = f"""Write a neutral investor update about the current financial state. Use only the facts below.
+
+Facts:
+- Revenue: €{key_metrics.get('revenue_total', 0):,.0f}
+- EBITDA: €{key_metrics.get('ebitda_total', 0):,.0f}
+- Cash: €{key_metrics.get('ending_cash', 0):,.0f}
+
+Write a short paragraph. Use factual language only. No predictions.
+"""
+    else:  # email
+        prompt = f"""Write an email memo about the current financial status. Use only the facts below.
+
+Facts:
+- Revenue: €{key_metrics.get('revenue_total', 0):,.0f}
+- EBITDA: €{key_metrics.get('ebitda_total', 0):,.0f}
+- Cash: €{key_metrics.get('ending_cash', 0):,.0f}
+
+Issues found: {len(insights_by_severity.get('critical', []))} critical, {len(insights_by_severity.get('warning', []))} warnings
+
+Write a structured memo with sections. Be factual, not predictive.
+"""
+    
+    return prompt
+
+
+def _generate_fallback_narrative(summary: Dict, format: str) -> str:
+    """Generate fallback narrative without LLM."""
+    key_metrics = summary.get("key_metrics", {})
+    
+    if format == "slack":
+        return f"""📊 Financial Update: Revenue €{key_metrics.get('revenue_total', 0):,.0f}, EBITDA €{key_metrics.get('ebitda_total', 0):,.0f}, Cash €{key_metrics.get('ending_cash', 0):,.0f}. Review needed on {len(summary.get('insights_by_severity', {}).get('critical', []))} critical items. (Generated from computed data)"""
+    
+    elif format == "investor":
+        return f"""Financial Update: Current revenue stands at €{key_metrics.get('revenue_total', 0):,.0f} with EBITDA of €{key_metrics.get('ebitda_total', 0):,.0f}. Cash position is €{key_metrics.get('ending_cash', 0):,.0f}. Analysis identifies several operational items requiring attention. Data reflects actual computed metrics without forward projections."""
+    
+    else:  # email
+        return f"""## Financial Memo
+
+**Current Metrics:**
+- Revenue: €{key_metrics.get('revenue_total', 0):,.0f}
+- EBITDA: €{key_metrics.get('ebitda_total', 0):,.0f}
+- Cash: €{key_metrics.get('ending_cash', 0):,.0f}
+- Runway: {key_metrics.get('runway_months', 0):.1f} months
+
+**Items Requiring Attention:**
+- Critical: {len(summary.get('insights_by_severity', {}).get('critical', []))}
+- Warnings: {len(summary.get('insights_by_severity', {}).get('warning', []))}
+
+Generated from computed financial data.
+"""
+
+
 def _contains_forbidden_language(text: str) -> bool:
     """
     Check if text contains forbidden prediction/recommendation language.

@@ -24,6 +24,7 @@ from src.metrics import (
 from src.config import DEFAULT_STARTING_CASH, UNDERUTILIZED_THRESHOLD, OVERUTILIZED_THRESHOLD
 from src.ui.insights_tab import render_insights_tab
 from src.ui.projects_page import render_projects_page
+from src.ui.briefs_tab import render_briefs_tab
 
 # Page config
 st.set_page_config(
@@ -484,6 +485,67 @@ def page_data_quality():
         st.rerun()
 
 
+def page_briefs():
+    """Weekly Brief page."""
+    if st.session_state.data is None:
+        st.warning("⚠️ Please upload data on the Data Quality page first.")
+        return
+    
+    data = st.session_state.data
+    time_entries = data["time_entries"]
+    invoices = data["invoices"]
+    expenses = data["expenses"]
+    employees = data["employees"]
+    
+    # Compute metrics outputs
+    try:
+        # Get date range
+        if len(time_entries) > 0 and len(invoices) > 0:
+            min_date = min(
+                pd.to_datetime(time_entries["date"]).min(),
+                pd.to_datetime(invoices["invoice_date"]).min()
+            )
+            max_date = max(
+                pd.to_datetime(time_entries["date"]).max(),
+                pd.to_datetime(invoices["invoice_date"]).max()
+            )
+            start_date_ts = min_date
+            end_date_ts = max_date
+        else:
+            start_date_ts = None
+            end_date_ts = None
+        
+        # Compute all metrics
+        income_statement_monthly = compute_income_statement(
+            invoices, time_entries, expenses, start_date_ts, end_date_ts
+        )
+        cashflow_monthly = compute_cashflow_statement(
+            invoices, expenses, employees,
+            st.session_state.starting_cash, start_date_ts, end_date_ts
+        )
+        projects_metrics = compute_project_metrics(time_entries, invoices, expenses, by_month=False)
+        projects_metrics_monthly = compute_project_metrics(time_entries, invoices, expenses, by_month=True)
+        employee_utilization = compute_employee_utilization(time_entries, employees, by_month=False)
+        runway_months = compute_runway(cashflow_monthly, st.session_state.starting_cash)
+        
+        # Prepare metrics outputs
+        metrics_outputs = {
+            "projects_metrics": projects_metrics,
+            "projects_metrics_monthly": projects_metrics_monthly,
+            "employee_utilization": employee_utilization,
+            "income_statement_monthly": income_statement_monthly,
+            "cashflow_monthly": cashflow_monthly,
+            "runway_months": runway_months
+        }
+        
+        # Render briefs tab
+        render_briefs_tab(metrics_outputs, data, st.session_state.starting_cash)
+        
+    except Exception as e:
+        st.error(f"Error computing metrics: {str(e)}")
+        st.exception(e)
+
+
 def page_insights():
     """Insights & Explanations page."""
     if st.session_state.data is None:
@@ -552,7 +614,7 @@ def main():
     st.sidebar.title("Navigation")
     page = st.sidebar.radio(
         "Go to",
-        ["Overview Dashboard", "Projects", "People", "Financial Statements", "Insights & Explanations", "Data Quality"]
+        ["Overview Dashboard", "Projects", "People", "Financial Statements", "Weekly Brief", "Insights & Explanations", "Data Quality"]
     )
     
     # Route to page
@@ -564,6 +626,8 @@ def main():
         page_people()
     elif page == "Financial Statements":
         page_financial_statements()
+    elif page == "Weekly Brief":
+        page_briefs()
     elif page == "Insights & Explanations":
         page_insights()
     elif page == "Data Quality":

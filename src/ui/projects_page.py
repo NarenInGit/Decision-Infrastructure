@@ -25,8 +25,6 @@ def render_projects_page(data: Dict, projects_metrics: pd.DataFrame):
         data: Dictionary with projects, employees, time_entries, etc.
         projects_metrics: Output from compute_project_metrics (overall, not monthly)
     """
-    st.title("📁 Projects")
-    
     # Initialize session state for selected project
     if "selected_project_id" not in st.session_state:
         st.session_state.selected_project_id = None

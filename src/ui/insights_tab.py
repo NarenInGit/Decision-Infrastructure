@@ -40,8 +40,7 @@ def render_insights_tab(
     insights_list = _get_or_build_insights(metrics_outputs, data)
     
     # Header
-    st.title("💬 Ask Your Data")
-    st.caption("Chat with your financial metrics - all answers grounded in deterministic data (no predictions).")
+    st.caption("Ask deterministic questions about projects, people, margins, cash, and invoices. Optional AI phrasing can reword the answer, but the computed facts stay primary.")
     
     # AI phrasing toggle (only if transformers available)
     transformers_available = check_transformers_available()
@@ -58,13 +57,9 @@ def render_insights_tab(
         st.session_state.use_ai_phrasing = False
         st.caption("⚠️ AI phrasing disabled (transformers not installed). Using deterministic answers.")
     
-    st.divider()
-    
     # Chat interface
     _render_chat_interface(metrics_outputs, insights_list)
-    
-    st.divider()
-    
+
     # Browse mode (optional, collapsed)
     _render_browse_mode(insights_list, metrics_outputs, starting_cash)
 
@@ -80,6 +75,13 @@ def _initialize_session_state():
                 "meta": {}
             }
         ]
+    if st.session_state.get("insights_chat"):
+        first_message = st.session_state.insights_chat[0]
+        if first_message.get("role") == "assistant":
+            first_message["content"] = (
+                "Ask about a project, a person, company performance, invoices, or cashflow. "
+                "Every answer stays grounded in deterministic data."
+            )
     if "use_ai_phrasing" not in st.session_state:
         st.session_state.use_ai_phrasing = False
 
@@ -107,7 +109,7 @@ def _render_chat_interface(metrics_outputs: Dict, insights_list: List[Dict]):
     
     # Example questions (chips)
     st.markdown("**Quick questions:**")
-    col1, col2, col3, col4, col5 = st.columns(5)
+    question_cols = st.columns(3)
     
     example_questions = [
         "Why is P009 unprofitable?",
@@ -117,13 +119,11 @@ def _render_chat_interface(metrics_outputs: Dict, insights_list: List[Dict]):
         "Why did revenue drop?"
     ]
     
-    for idx, (col, question) in enumerate(zip([col1, col2, col3, col4, col5], example_questions)):
-        with col:
+    for idx, question in enumerate(example_questions):
+        with question_cols[idx % 3]:
             if st.button(question, key=f"example_{idx}", use_container_width=True):
                 _handle_user_query(question, metrics_outputs, insights_list)
                 st.rerun()
-    
-    st.divider()
     
     # Chat history
     for msg_idx, msg in enumerate(st.session_state.insights_chat):

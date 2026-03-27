@@ -97,6 +97,8 @@ def test_data_quality_overview_reports_status_and_freshness(base_data_frames):
     )
 
     assert overview["status"] == "blocked"
+    assert overview["trust_label"] == "Lower Trust"
+    assert overview["trust_score"] == 47
     assert "blocking validation errors" in overview["message"].lower()
     assert overview["blocking_error_count"] == 1
     assert overview["warning_count"] == 1
@@ -105,3 +107,11 @@ def test_data_quality_overview_reports_status_and_freshness(base_data_frames):
     invoices_row = next(row for row in overview["datasets"] if row["dataset"] == "invoices")
     assert invoices_row["coverage_end"] == pd.Timestamp("2026-03-15")
     assert invoices_row["freshness_days"] == 0
+
+
+def test_data_quality_overview_scores_clean_data_as_full_trust(base_data_frames):
+    overview = get_data_quality_overview(base_data_frames, {"errors": [], "warnings": []})
+
+    assert overview["status"] == "ready"
+    assert overview["trust_label"] == "Standard"
+    assert overview["trust_score"] == 88

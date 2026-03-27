@@ -8,6 +8,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from pathlib import Path
+from html import escape
 import sys
 
 # Add src to path
@@ -23,6 +24,7 @@ from src.metrics import (
     compute_runway
 )
 from src.config import DEFAULT_STARTING_CASH, UNDERUTILIZED_THRESHOLD, OVERUTILIZED_THRESHOLD
+from src.core.insights_engine import generate_insights
 from src.ui.insights_tab import render_insights_tab
 from src.ui.projects_page import render_projects_page
 from src.ui.briefs_tab import render_briefs_tab
@@ -48,6 +50,1063 @@ if "validation_results" not in st.session_state:
     st.session_state.validation_results = None
 if "starting_cash" not in st.session_state:
     st.session_state.starting_cash = DEFAULT_STARTING_CASH
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "Overview Dashboard"
+
+
+PAGE_COPY = {
+    "Overview Dashboard": (
+        "SME Decision Support",
+        "Overview Dashboard",
+        "A deterministic operating view of revenue, margin, cash, and runway. Built to earn trust before it adds interpretation.",
+    ),
+    "Projects": (
+        "Project Profitability",
+        "Project Performance",
+        "Margin, delivery economics, and pressure points across the current portfolio.",
+    ),
+    "People": (
+        "Capacity and Delivery",
+        "People and Utilization",
+        "Team utilization, staffing pressure, and billable capacity based on the loaded operating data.",
+    ),
+    "Financial Statements": (
+        "Financial Reporting",
+        "Financial Statements",
+        "Accrual and cash-based views grounded in the same validated source data.",
+    ),
+    "Weekly Brief": (
+        "Executive Narrative",
+        "Weekly Brief",
+        "Guardrailed narrative summaries built on deterministic metrics and explicit data quality.",
+    ),
+    "Insights & Explanations": (
+        "Decision Support",
+        "Insights and Explanations",
+        "Explainable operating signals, grounded in computed facts rather than invented certainty.",
+    ),
+    "Data Quality": (
+        "Data Contract",
+        "Data Quality",
+        "Coverage, freshness, and validation status for the datasets behind every visible output.",
+    ),
+}
+
+
+def _inject_app_theme():
+    """Apply a premium dark product shell with custom navigation and surfaces."""
+    st.markdown(
+        """
+        <style>
+        :root {
+            --bg: #06080d;
+            --bg-soft: #0d1118;
+            --surface: rgba(17, 22, 30, 0.9);
+            --surface-elevated: rgba(20, 26, 35, 0.94);
+            --surface-strong: rgba(11, 15, 22, 0.98);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-strong: rgba(255, 255, 255, 0.14);
+            --text: #ffffff;
+            --muted: #a3acb8;
+            --muted-strong: #f2f5f8;
+            --accent: #f3c86d;
+            --accent-soft: rgba(243, 200, 109, 0.18);
+            --good: #36d39b;
+            --warn: #f3b35f;
+            --danger: #ff7d6d;
+            --chart-green: #36d39b;
+            --chart-rose: #ff7d6d;
+            --chart-sand: #f3c86d;
+            --chart-slate: #85baff;
+            --shadow: 0 28px 60px rgba(0, 0, 0, 0.38);
+            --shadow-soft: 0 16px 34px rgba(0, 0, 0, 0.24);
+            --radius-lg: 24px;
+            --radius-md: 18px;
+            --radius-sm: 14px;
+            --control-radius: 14px;
+            --control-height: 48px;
+            --sidebar-control-height: 50px;
+            --space-content: 1.1rem;
+            --space-section: 1.6rem;
+            --font-sans: "IBM Plex Sans", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+            --font-display: "IBM Plex Sans", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+        }
+        .stApp {
+            background:
+                radial-gradient(72rem 28rem at 10% -12%, rgba(255, 255, 255, 0.04), transparent 58%),
+                radial-gradient(44rem 24rem at 92% 2%, rgba(54, 211, 155, 0.03), transparent 60%),
+                linear-gradient(180deg, #020304 0%, #05070b 45%, #020304 100%);
+            color: var(--text);
+            font-family: var(--font-sans);
+        }
+        .stApp::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background:
+                linear-gradient(110deg, transparent 0%, transparent 26%, rgba(255, 255, 255, 0.045) 36%, transparent 50%),
+                linear-gradient(96deg, transparent 54%, rgba(255, 255, 255, 0.02) 64%, transparent 75%);
+            opacity: 0.34;
+        }
+        [data-testid="stAppViewContainer"] > .main { position: relative; z-index: 1; }
+        [data-testid="stAppViewContainer"] .main [data-testid="stVerticalBlock"] { gap: 1rem; }
+        [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.75rem; }
+        [data-testid="stHeader"] {
+            background: rgba(8, 10, 14, 0.9);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            z-index: 20;
+        }
+        [data-testid="stToolbar"] {
+            top: 0.85rem;
+            right: 0.8rem;
+            background: rgba(14, 18, 24, 0.88);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 0.1rem 0.2rem;
+            z-index: 30;
+        }
+        [data-testid="collapsedControl"] {
+            background: rgba(17, 21, 28, 0.72);
+            border-radius: 999px;
+            border: 1px solid var(--border);
+        }
+        [data-testid="stSidebar"] {
+            background:
+                linear-gradient(180deg, rgba(11, 15, 21, 0.985) 0%, rgba(8, 11, 17, 0.995) 100%);
+            border-right: 1px solid var(--border);
+            min-width: 305px !important;
+            max-width: 305px !important;
+        }
+        [data-testid="stSidebar"] * { color: var(--text); }
+        [data-testid="stSidebar"] .block-container {
+            padding-top: 1.25rem;
+            padding-bottom: 1.45rem;
+        }
+        .block-container {
+            padding-top: 2.35rem;
+            padding-bottom: 3rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            max-width: 1700px;
+        }
+        h1, h2, h3, h4 {
+            color: var(--text);
+            letter-spacing: -0.035em;
+            font-family: var(--font-display);
+        }
+        h1 { display: none; }
+        p, li, label, [data-testid="stMarkdownContainer"], .stCaption {
+            font-family: var(--font-sans);
+        }
+        body, p, li {
+            font-size: 0.94rem;
+            line-height: 1.55;
+        }
+        h2 {
+            font-size: 1.36rem;
+            font-weight: 600;
+        }
+        h3 {
+            font-size: 1.04rem;
+            font-weight: 600;
+        }
+        .di-sidebar-brand {
+            margin-bottom: 1.2rem;
+            padding: 1.15rem 1rem 1rem 1rem;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background:
+                linear-gradient(180deg, rgba(18, 24, 32, 0.98), rgba(12, 17, 24, 0.97)),
+                radial-gradient(circle at top left, rgba(255, 255, 255, 0.04), transparent 40%);
+            box-shadow: var(--shadow-soft);
+        }
+        .di-sidebar-eyebrow {
+            text-transform: uppercase;
+            letter-spacing: 0.16em;
+            font-size: 0.68rem;
+            color: var(--muted);
+            margin-bottom: 0.55rem;
+        }
+        .di-sidebar-title {
+            font-family: var(--font-display);
+            font-size: 1.02rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            color: var(--text);
+            margin-bottom: 0.35rem;
+        }
+        .di-sidebar-copy {
+            color: rgba(255, 255, 255, 0.72);
+            font-size: 0.83rem;
+            line-height: 1.5;
+        }
+        .di-sidebar-section {
+            margin: 1.15rem 0 0.55rem 0;
+            color: var(--text);
+            text-transform: uppercase;
+            letter-spacing: 0.16em;
+            font-size: 0.68rem;
+        }
+        .di-sidebar-field-label {
+            color: var(--text);
+            font-size: 0.78rem;
+            margin-bottom: 0.55rem;
+        }
+        .di-sidebar-note {
+            color: rgba(255, 255, 255, 0.68);
+            font-size: 0.76rem;
+            line-height: 1.45;
+            margin-top: 0.2rem;
+        }
+        [data-testid="stSidebar"] .stNumberInput label,
+        [data-testid="stSidebar"] .stButton button p {
+            font-family: var(--font-sans);
+        }
+        [data-testid="stSidebar"] .stNumberInput {
+            margin-top: 0.2rem;
+            margin-bottom: 0.3rem;
+            min-height: var(--sidebar-control-height);
+            padding: 0 0.92rem;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: linear-gradient(180deg, rgba(21, 25, 32, 0.96), rgba(15, 19, 25, 0.94));
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+            display: flex;
+            align-items: center;
+        }
+        [data-testid="stSidebar"] .stNumberInput > div[data-baseweb="input"] {
+            min-height: 36px;
+            border-radius: var(--radius-sm) !important;
+            border: 0 !important;
+            background: transparent !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+        }
+        [data-testid="stSidebar"] .stNumberInput [data-baseweb="input"] > div,
+        [data-testid="stSidebar"] .stNumberInput [data-baseweb="base-input"] {
+            border: 0 !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            align-items: center;
+            justify-content: center;
+            min-height: 36px;
+        }
+        [data-testid="stSidebar"] .stNumberInput input {
+            background: transparent !important;
+            color: var(--text) !important;
+            font-size: 1.02rem;
+            font-weight: 600;
+            text-align: center;
+            line-height: 1.2;
+            min-height: 36px !important;
+            padding: 0 !important;
+        }
+        [data-testid="stSidebar"] .stNumberInput button {
+            min-height: 28px !important;
+            min-width: 32px !important;
+            align-self: center !important;
+            border: 0 !important;
+            background: transparent !important;
+            color: var(--muted-strong) !important;
+            box-shadow: none !important;
+        }
+        [data-testid="stSidebar"] .stNumberInput button:hover {
+            color: var(--text) !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            border-radius: 10px !important;
+        }
+        [data-testid="stSidebar"] .stButton > button {
+            width: 100%;
+            min-height: var(--sidebar-control-height);
+            justify-content: flex-start;
+            padding: 0 0.92rem;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.07) !important;
+            background: rgba(255, 255, 255, 0.015) !important;
+            color: var(--text) !important;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14) !important;
+            font-weight: 500;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.32s ease !important;
+            align-items: center;
+        }
+        [data-testid="stSidebar"] .stButton > button:hover {
+            transform: scale(1.03);
+            border-color: rgba(255, 255, 255, 0.14) !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            box-shadow: 12px 17px 42px rgba(0, 0, 0, 0.22), 0 0 20px rgba(255, 255, 255, 0.05) !important;
+        }
+        [data-testid="stSidebar"] .stButton > button[kind="primary"] {
+            background:
+                linear-gradient(180deg, rgba(34, 39, 48, 0.96), rgba(22, 26, 33, 0.96)) !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+            color: var(--text) !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 22px rgba(0, 0, 0, 0.24), 0 0 20px rgba(255, 255, 255, 0.045) !important;
+        }
+        [data-testid="stSidebar"] .stButton > button:active {
+            transform: scale(0.95) rotateZ(1.7deg);
+        }
+        .di-sidebar-trust {
+            margin: 1.05rem 0 1.2rem 0;
+            padding: 0.95rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background:
+                linear-gradient(180deg, rgba(20, 24, 31, 0.94), rgba(14, 18, 24, 0.94)),
+                radial-gradient(circle at top right, rgba(255, 255, 255, 0.035), transparent 35%);
+        }
+        .di-sidebar-trust-top {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-bottom: 0.45rem;
+        }
+        .di-sidebar-trust-score {
+            font-family: var(--font-display);
+            font-size: 1.55rem;
+            font-weight: 600;
+            letter-spacing: -0.04em;
+        }
+        .di-sidebar-trust-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+        }
+        .di-meter-track {
+            width: 100%;
+            height: 0.4rem;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+        }
+        .di-meter-fill {
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(205, 184, 150, 0.72), rgba(255, 255, 255, 0.7));
+        }
+        .di-meter-fill.ready { background: linear-gradient(90deg, #7ab292, #cdb896); }
+        .di-meter-fill.caution { background: linear-gradient(90deg, #cfad72, #cdb896); }
+        .di-meter-fill.blocked { background: linear-gradient(90deg, #c67f7f, #cfad72); }
+        .di-sidebar-trust-copy {
+            margin-top: 0.55rem;
+            color: rgba(255, 255, 255, 0.72);
+            font-size: 0.8rem;
+            line-height: 1.45;
+        }
+        .di-hero {
+            padding: 1.45rem 1.65rem 1.35rem 1.65rem;
+            margin-bottom: 0;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            background:
+                linear-gradient(180deg, rgba(18, 24, 32, 0.96), rgba(11, 15, 22, 0.97)),
+                radial-gradient(circle at top left, rgba(255, 255, 255, 0.04), transparent 42%);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(14px);
+        }
+        .di-kicker {
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+            font-size: 0.72rem;
+            color: rgba(255, 255, 255, 0.76);
+            margin-bottom: 0.75rem;
+        }
+        .di-title {
+            font-family: var(--font-display);
+            font-size: clamp(2.1rem, 3.2vw, 3rem);
+            font-weight: 620;
+            line-height: 1.02;
+            margin: 0;
+            color: var(--text);
+            max-width: 54rem;
+        }
+        .di-subtitle {
+            margin-top: 0.7rem;
+            color: rgba(255, 255, 255, 0.82);
+            max-width: 64rem;
+            font-size: 0.98rem;
+            line-height: 1.58;
+        }
+        .di-section-label {
+            margin: var(--space-section) 0 0.6rem 0;
+            color: var(--text);
+            text-transform: uppercase;
+            letter-spacing: 0.16em;
+            font-size: 0.68rem;
+        }
+        .di-section-gap {
+            height: var(--space-section);
+        }
+        .di-content-gap {
+            height: var(--space-content);
+        }
+        .di-kpi-card {
+            min-height: 186px;
+            height: 100%;
+            padding: 1.08rem 1.08rem 1rem 1.08rem;
+            margin-bottom: 0;
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            background:
+                linear-gradient(180deg, rgba(20, 24, 31, 0.96), rgba(14, 18, 24, 0.94)),
+                radial-gradient(circle at top left, rgba(255, 255, 255, 0.04), transparent 44%);
+            box-shadow: var(--shadow-soft);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.32s ease;
+        }
+        .di-kpi-card:hover {
+            transform: scale(1.03);
+            border-color: rgba(255, 255, 255, 0.14);
+            box-shadow: 12px 17px 42px rgba(0, 0, 0, 0.22), 0 0 24px rgba(255, 255, 255, 0.05);
+        }
+        .di-kpi-card:active {
+            transform: scale(0.95) rotateZ(1.7deg);
+        }
+        .di-kpi-label {
+            color: var(--muted-strong);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-size: 0.72rem;
+            margin-bottom: 0.8rem;
+        }
+        .di-kpi-value {
+            font-family: var(--font-display);
+            font-size: 1.78rem;
+            font-weight: 600;
+            letter-spacing: -0.04em;
+            color: var(--text);
+            margin-bottom: 0.55rem;
+            line-height: 1.05;
+            min-height: 2.1rem;
+        }
+        .di-kpi-detail {
+            color: var(--muted-strong);
+            font-size: 0.88rem;
+            line-height: 1.45;
+            min-height: 3.95rem;
+            max-height: 3.95rem;
+            overflow: hidden;
+            word-break: break-word;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+        }
+        [data-testid="column"] .di-kpi-card,
+        [data-testid="column"] .di-insight-card {
+            height: 100%;
+        }
+        .di-kpi-tone-bar {
+            width: 2.65rem;
+            height: 0.22rem;
+            border-radius: 999px;
+            margin-top: 0.95rem;
+            background: rgba(255, 255, 255, 0.12);
+        }
+        .di-kpi-card.good .di-kpi-tone-bar { background: var(--good); }
+        .di-kpi-card.caution .di-kpi-tone-bar { background: var(--warn); }
+        .di-kpi-card.danger .di-kpi-tone-bar { background: var(--danger); }
+        .di-kpi-card.accent .di-kpi-tone-bar { background: var(--accent); }
+        .di-trust-banner {
+            margin: 0;
+            padding: 1.25rem;
+            border-radius: var(--radius-lg);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            background:
+                linear-gradient(180deg, rgba(20, 24, 31, 0.96), rgba(14, 18, 24, 0.95)),
+                radial-gradient(circle at top right, rgba(255, 255, 255, 0.04), transparent 38%);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(12px);
+        }
+        .di-trust-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.9fr);
+            gap: 1rem;
+            align-items: start;
+        }
+        .di-trust-eyebrow {
+            color: var(--text);
+            text-transform: uppercase;
+            letter-spacing: 0.16em;
+            font-size: 0.7rem;
+            margin-bottom: 0.6rem;
+        }
+        .di-trust-title {
+            font-family: var(--font-display);
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.55rem;
+        }
+        .di-trust-score-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.8rem;
+        }
+        .di-trust-score {
+            font-family: var(--font-display);
+            font-size: 2.8rem;
+            font-weight: 620;
+            letter-spacing: -0.05em;
+            line-height: 1;
+            color: var(--text);
+        }
+        .di-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.35rem 0.8rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.04);
+        }
+        .di-pill.ready { color: var(--good); }
+        .di-pill.caution { color: var(--warn); }
+        .di-pill.blocked { color: var(--danger); }
+        .di-trust-message {
+            color: rgba(255, 255, 255, 0.82);
+            line-height: 1.6;
+            font-size: 0.95rem;
+            margin-top: 0.9rem;
+            max-width: 42rem;
+        }
+        .di-trust-stats {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.7rem;
+        }
+        .di-stat-card {
+            min-height: 104px;
+            padding: 0.9rem 0.95rem;
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.028);
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.32s ease;
+        }
+        .di-stat-card:hover {
+            transform: scale(1.03);
+            border-color: rgba(255, 255, 255, 0.14);
+            box-shadow: 12px 17px 42px rgba(0, 0, 0, 0.22), 0 0 22px rgba(255, 255, 255, 0.045);
+        }
+        .di-stat-card:active {
+            transform: scale(0.95) rotateZ(1.7deg);
+        }
+        .di-stat-label {
+            color: var(--muted-strong);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-size: 0.68rem;
+            margin-bottom: 0.5rem;
+        }
+        .di-stat-value {
+            color: var(--text);
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            line-height: 1.2;
+            letter-spacing: -0.03em;
+        }
+        .di-stat-detail {
+            color: rgba(255, 255, 255, 0.68);
+            font-size: 0.78rem;
+            line-height: 1.45;
+            margin-top: 0.45rem;
+        }
+        .di-surface {
+            padding: 1.15rem 1.15rem 0.5rem 1.15rem;
+            margin-bottom: 0;
+            border-radius: var(--radius-lg);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            background:
+                linear-gradient(180deg, rgba(20, 24, 31, 0.95), rgba(14, 18, 24, 0.93));
+            box-shadow: var(--shadow-soft);
+            backdrop-filter: blur(10px);
+        }
+        .di-surface-head {
+            margin-bottom: 0.85rem;
+            padding: 0 0.05rem;
+        }
+        .di-surface-title {
+            font-family: var(--font-display);
+            font-size: 1.08rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.25rem;
+        }
+        .di-surface-copy {
+            color: rgba(255, 255, 255, 0.72);
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+        .di-insight-card {
+            height: 100%;
+            min-height: 152px;
+            padding: 1rem 1rem 0.9rem 1rem;
+            margin-bottom: 0;
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            background: rgba(255, 255, 255, 0.028);
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.32s ease;
+        }
+        .di-card-row-gap {
+            height: var(--space-content);
+        }
+        .di-insight-card:hover {
+            transform: scale(1.03);
+            border-color: rgba(255, 255, 255, 0.14);
+            box-shadow: 12px 17px 42px rgba(0, 0, 0, 0.22), 0 0 24px rgba(255, 255, 255, 0.045);
+        }
+        .di-insight-card:active {
+            transform: scale(0.95) rotateZ(1.7deg);
+        }
+        .di-insight-topline {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.6rem;
+            margin-bottom: 0.7rem;
+        }
+        .di-insight-entity {
+            color: var(--muted-strong);
+            font-size: 0.74rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        .di-severity-pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 0.2rem 0.56rem;
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            background: rgba(255, 255, 255, 0.04);
+        }
+        .di-severity-pill.critical { color: var(--danger); }
+        .di-severity-pill.warning { color: var(--warn); }
+        .di-severity-pill.info { color: var(--good); }
+        .di-insight-message {
+            color: var(--text);
+            font-size: 0.95rem;
+            line-height: 1.55;
+            margin-bottom: 0.7rem;
+        }
+        .di-insight-driver {
+            color: rgba(255, 255, 255, 0.68);
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+        .di-table-shell {
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            background: rgba(13, 17, 23, 0.82);
+            overflow: hidden;
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.16);
+            transition: transform 220ms ease, border-color 220ms ease, box-shadow 260ms ease;
+        }
+        .di-table-shell:hover {
+            transform: translateY(-1px);
+            border-color: rgba(255, 255, 255, 0.14);
+            box-shadow: 0 16px 34px rgba(0, 0, 0, 0.24), 0 0 20px rgba(255, 255, 255, 0.025);
+        }
+        .di-table-wrap {
+            overflow-x: auto;
+        }
+        .di-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .di-table thead th {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--muted-strong);
+            text-align: left;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            padding: 0.82rem 0.92rem;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        .di-table tbody td {
+            color: var(--text);
+            font-size: 0.9rem;
+            line-height: 1.5;
+            padding: 0.86rem 0.92rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+        }
+        .di-table tbody tr:last-child td {
+            border-bottom: 0;
+        }
+        .di-table tbody tr:nth-child(even) td {
+            background: rgba(255, 255, 255, 0.012);
+        }
+        .di-table tbody tr:hover td {
+            background: rgba(255, 255, 255, 0.028);
+        }
+        [data-testid="stExpander"] {
+            border: 1px solid var(--border);
+            border-radius: var(--control-radius);
+            background: rgba(14, 19, 27, 0.96);
+            overflow: hidden;
+        }
+        [data-testid="stExpander"] details {
+            border: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            border-radius: inherit !important;
+        }
+        [data-testid="stExpander"] summary {
+            border: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            min-height: var(--control-height);
+            padding: 0 0.95rem !important;
+            display: flex !important;
+            align-items: center !important;
+            border-radius: inherit !important;
+        }
+        [data-testid="stExpander"] summary::before,
+        [data-testid="stExpander"] summary::after {
+            display: none !important;
+        }
+        [data-testid="stExpander"] summary p,
+        [data-testid="stExpander"] summary span,
+        [data-testid="stExpander"] summary div {
+            color: var(--text) !important;
+            line-height: 1.2 !important;
+        }
+        .stDateInput > div,
+        .stSelectbox > div,
+        .stMultiSelect > div,
+        .stTextInput > div,
+        .stNumberInput > div {
+            border: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+        .stSelectbox div[data-baseweb="select"] > div,
+        .stMultiSelect div[data-baseweb="select"] > div,
+        .stTextInput [data-baseweb="base-input"],
+        .stNumberInput [data-baseweb="base-input"],
+        .stDateInput [data-baseweb="input"] {
+            background: rgba(14, 19, 27, 0.96) !important;
+            border: 1px solid var(--border-strong) !important;
+            border-radius: var(--control-radius) !important;
+            color: var(--text) !important;
+            box-shadow: none !important;
+            min-height: var(--control-height) !important;
+        }
+        .stSelectbox div[data-baseweb="select"] [data-baseweb="select"] > div,
+        .stMultiSelect div[data-baseweb="select"] [data-baseweb="select"] > div,
+        .stDateInput div[data-baseweb="input"] [data-baseweb="input"] > div,
+        .stDateInput div[data-baseweb="input"] [data-baseweb="base-input"],
+        .stDateInput div[data-baseweb="input"] input,
+        .stSelectbox div[data-baseweb="select"] [role="combobox"],
+        .stMultiSelect div[data-baseweb="select"] [role="combobox"] {
+            border: 0 !important;
+            outline: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+        }
+        .stDateInput [data-baseweb="input"] > div,
+        .stTextInput [data-baseweb="base-input"] > div,
+        .stNumberInput [data-baseweb="base-input"] > div,
+        .stSelectbox div[data-baseweb="select"] > div > div,
+        .stMultiSelect div[data-baseweb="select"] > div > div,
+        .stDateInput [data-baseweb="base-input"] {
+            border: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+        .stDateInput input,
+        .stSelectbox div[data-baseweb="select"] [role="combobox"],
+        .stMultiSelect div[data-baseweb="select"] [role="combobox"],
+        [data-testid="stExpander"] summary {
+            min-height: var(--control-height) !important;
+        }
+        [data-testid="stSidebar"] .stNumberInput > div,
+        [data-testid="stSidebar"] .stNumberInput > div[data-baseweb="input"],
+        [data-testid="stSidebar"] .stNumberInput [data-baseweb="input"],
+        [data-testid="stSidebar"] .stNumberInput [data-baseweb="base-input"],
+        [data-testid="stSidebar"] .stNumberInput [data-baseweb="base-input"] > div {
+            border: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+        [data-testid="stSidebar"] .stNumberInput [data-baseweb="base-input"] {
+            justify-content: center !important;
+            gap: 0.18rem !important;
+        }
+        label[data-testid="stWidgetLabel"] p {
+            color: var(--text) !important;
+            letter-spacing: 0.01em;
+        }
+        h3 {
+            margin: 0 0 0.65rem 0 !important;
+        }
+        .stCaption {
+            color: rgba(255, 255, 255, 0.72) !important;
+            margin-top: 0.35rem !important;
+        }
+        .stButton > button, .stDownloadButton > button {
+            border-radius: 14px !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            background: linear-gradient(180deg, rgba(28, 33, 42, 0.96), rgba(18, 22, 28, 0.96)) !important;
+            color: var(--text) !important;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.32s ease !important;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+        }
+        .stButton > button:hover, .stDownloadButton > button:hover {
+            transform: scale(1.03);
+            border-color: rgba(255, 255, 255, 0.14) !important;
+            box-shadow: 12px 17px 42px rgba(0, 0, 0, 0.22), 0 0 18px rgba(255, 255, 255, 0.04);
+        }
+        .stButton > button:active, .stDownloadButton > button:active {
+            transform: scale(0.95) rotateZ(1.7deg);
+        }
+        [data-testid="stDataFrame"], [data-testid="stTable"] {
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.14);
+        }
+        [data-testid="stDataFrame"] [role="grid"],
+        [data-testid="stTable"] table {
+            background: rgba(13, 17, 23, 0.96);
+        }
+        [data-testid="stDataFrame"] [role="columnheader"],
+        [data-testid="stTable"] th {
+            background: rgba(255, 255, 255, 0.035) !important;
+            color: var(--muted-strong) !important;
+            font-size: 0.72rem !important;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            border-bottom: 1px solid var(--border) !important;
+        }
+        [data-testid="stDataFrame"] [role="gridcell"],
+        [data-testid="stTable"] td {
+            color: var(--text) !important;
+            border-top: 1px solid rgba(255, 255, 255, 0.04) !important;
+            background: rgba(0, 0, 0, 0) !important;
+        }
+        [data-testid="stPlotlyChart"] {
+            border-radius: 18px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            background: rgba(13, 17, 23, 0.82);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.14);
+            padding: 0.18rem;
+            transition: transform 220ms ease, border-color 220ms ease, box-shadow 260ms ease;
+        }
+        [data-testid="stPlotlyChart"]:hover {
+            transform: translateY(-1px);
+            border-color: rgba(255, 255, 255, 0.14);
+            box-shadow: 0 16px 30px rgba(0, 0, 0, 0.22), 0 0 18px rgba(255, 255, 255, 0.025);
+        }
+        [data-testid="stChatInput"] {
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: rgba(16, 20, 27, 0.92);
+            padding: 0.25rem 0.45rem;
+        }
+        [data-testid="stChatInput"] textarea {
+            font-size: 0.95rem !important;
+        }
+        .stSelectbox div[data-baseweb="select"] > div:focus-within,
+        .stMultiSelect div[data-baseweb="select"] > div:focus-within,
+        .stTextInput [data-baseweb="base-input"]:focus-within,
+        .stNumberInput [data-baseweb="base-input"]:focus-within,
+        .stDateInput [data-baseweb="input"]:focus-within {
+            border-color: rgba(243, 200, 109, 0.44) !important;
+            box-shadow: 0 0 0 1px rgba(243, 200, 109, 0.2);
+        }
+        hr {
+            border-color: rgba(255, 255, 255, 0.08);
+            margin: var(--space-section) 0 !important;
+        }
+        @media (max-width: 1080px) {
+            .di-trust-layout { grid-template-columns: 1fr; }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_page_intro(title: str, subtitle: str, kicker: str = "Decision Infrastructure"):
+    """Render a premium page hero."""
+    st.markdown(
+        f"""
+        <div class="di-hero">
+            <div class="di-kicker">{kicker}</div>
+            <p class="di-title">{title}</p>
+            <div class="di-subtitle">{subtitle}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_page_shell(page_name: str):
+    kicker, title, subtitle = PAGE_COPY[page_name]
+    _render_page_intro(title, subtitle, kicker=kicker)
+    _render_layout_gap("section")
+
+
+def _render_section_label(label: str):
+    st.markdown(f'<div class="di-section-label">{label}</div>', unsafe_allow_html=True)
+
+
+def _render_layout_gap(size: str = "section"):
+    css_class = "di-section-gap" if size == "section" else "di-content-gap"
+    st.markdown(f'<div class="{css_class}"></div>', unsafe_allow_html=True)
+
+
+def _open_surface():
+    return None
+
+
+def _close_surface():
+    return None
+
+
+def _render_surface_header(title: str, subtitle: str | None = None):
+    subtitle_markup = f'<div class="di-surface-copy">{subtitle}</div>' if subtitle else ""
+    st.markdown(
+        f"""
+        <div class="di-surface-head">
+            <div class="di-surface-title">{title}</div>
+            {subtitle_markup}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _format_display_date(value) -> str:
+    if value is None or pd.isna(value):
+        return "N/A"
+    return pd.to_datetime(value).strftime("%b %d, %Y")
+
+
+def _format_coverage_window(start_value, end_value) -> str:
+    if start_value is None and end_value is None:
+        return "No dated records"
+    if start_value is None:
+        return f"Through {_format_display_date(end_value)}"
+    if end_value is None:
+        return f"From {_format_display_date(start_value)}"
+    start_text = _format_display_date(start_value)
+    end_text = _format_display_date(end_value)
+    return start_text if start_text == end_text else f"{start_text} - {end_text}"
+
+
+def _render_kpi_card(label: str, value: str, detail: str, tone: str = "accent"):
+    card_markup = (
+        f'<div class="di-kpi-card {escape(str(tone))}">'
+        f'<div class="di-kpi-label">{escape(str(label))}</div>'
+        f'<div class="di-kpi-value">{escape(str(value))}</div>'
+        f'<div class="di-kpi-detail">{escape(str(detail))}</div>'
+        f'<div class="di-kpi-tone-bar"></div>'
+        f'</div>'
+    )
+    st.markdown(card_markup, unsafe_allow_html=True)
+
+
+def _render_kpi_grid(cards: list[tuple[str, str, str, str]]):
+    for start_index in range(0, len(cards), 3):
+        if start_index > 0:
+            st.markdown('<div class="di-card-row-gap"></div>', unsafe_allow_html=True)
+        columns = st.columns(3, gap="large")
+        for column, card in zip(columns, cards[start_index:start_index + 3]):
+            with column:
+                _render_kpi_card(*card)
+
+
+def _render_insight_grid(insights: list[dict]):
+    for start_index in range(0, len(insights), 3):
+        if start_index > 0:
+            st.markdown('<div class="di-card-row-gap"></div>', unsafe_allow_html=True)
+        columns = st.columns(3, gap="large")
+        for column, insight in zip(columns, insights[start_index:start_index + 3]):
+            with column:
+                _render_insight_card(insight)
+
+
+def _format_table_cell(value, formatter=None) -> str:
+    if formatter is not None:
+        return formatter(value)
+    if isinstance(value, float):
+        return f"{value:,.2f}"
+    return str(value)
+
+
+def _render_modern_table(dataframe: pd.DataFrame, formatters: dict[str, object] | None = None):
+    formatters = formatters or {}
+    headers = "".join(f"<th>{escape(str(column))}</th>" for column in dataframe.columns)
+    body_rows = []
+    for row in dataframe.itertuples(index=False, name=None):
+        cells = []
+        for column, value in zip(dataframe.columns, row):
+            formatted_value = _format_table_cell(value, formatters.get(column))
+            cells.append(f"<td>{escape(formatted_value)}</td>")
+        body_rows.append(f"<tr>{''.join(cells)}</tr>")
+
+    table_markup = (
+        f'<div class="di-table-shell"><div class="di-table-wrap"><table class="di-table">'
+        f'<thead><tr>{headers}</tr></thead><tbody>{"".join(body_rows)}</tbody></table></div></div>'
+    )
+    st.markdown(table_markup, unsafe_allow_html=True)
+
+
+def _apply_chart_theme(fig: go.Figure):
+    """Apply a consistent dark premium chart theme."""
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(255,255,255,0.015)",
+        font=dict(color="#e7e9ec", family="IBM Plex Sans, Segoe UI Variable Text, Segoe UI, sans-serif", size=12),
+        title_font=dict(size=18, color="#f5f5f6"),
+        margin=dict(l=8, r=8, t=28, b=8),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1.0,
+            bgcolor="rgba(0,0,0,0)",
+            font=dict(size=11, color="#b9c0ca"),
+        ),
+        xaxis=dict(showgrid=False, zeroline=False, linecolor="rgba(255,255,255,0.08)", color="#c1c8d2", tickfont=dict(size=10)),
+        yaxis=dict(gridcolor="rgba(255,255,255,0.05)", zeroline=False, color="#c1c8d2", tickfont=dict(size=10)),
+        hoverlabel=dict(bgcolor="#11161f", bordercolor="rgba(243,200,109,0.2)", font_color="#f5f5f6"),
+    )
+    return fig
+
+
+_inject_app_theme()
 
 
 def load_data():
@@ -87,8 +1146,77 @@ def _build_metrics_outputs(data: dict, start_date_ts=None, end_date_ts=None):
     )
 
 
+def _render_sidebar_shell(available_pages: list[str]):
+    """Render a custom premium sidebar and return the active page."""
+    if st.session_state.current_page not in available_pages:
+        st.session_state.current_page = available_pages[0]
+
+    with st.sidebar:
+        st.markdown(
+            """
+            <div class="di-sidebar-brand">
+                <div class="di-sidebar-eyebrow">Decision Infrastructure</div>
+                <div class="di-sidebar-title">Validated operating metrics</div>
+                <div class="di-sidebar-copy">
+                    Revenue, margin, cash, runway, and explanation surfaces grounded in validated source data.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown('<div class="di-sidebar-section">Navigation</div>', unsafe_allow_html=True)
+        for page_name in available_pages:
+            button_type = "primary" if st.session_state.current_page == page_name else "secondary"
+            if st.button(page_name, key=f"nav_{page_name}", type=button_type, use_container_width=True):
+                st.session_state.current_page = page_name
+                st.rerun()
+
+        st.markdown('<div class="di-sidebar-section">Financial Context</div>', unsafe_allow_html=True)
+        st.markdown('<div class="di-sidebar-field-label">Starting cash baseline</div>', unsafe_allow_html=True)
+        st.session_state.starting_cash = st.number_input(
+            "Starting Cash (EUR)",
+            min_value=0.0,
+            value=st.session_state.starting_cash,
+            step=1000.0,
+            label_visibility="collapsed",
+            key="starting_cash_sidebar",
+        )
+        st.markdown(
+            '<div class="di-sidebar-note">Used for deterministic runway and ending-cash calculations.</div>',
+            unsafe_allow_html=True,
+        )
+
+        if st.session_state.data is not None and st.session_state.validation_results is not None:
+            sidebar_overview = get_data_quality_overview(st.session_state.data, st.session_state.validation_results)
+            status_class = "ready" if sidebar_overview["status"] == "ready" else ("caution" if sidebar_overview["status"] == "caution" else "blocked")
+            st.markdown(
+                f"""
+                <div class="di-sidebar-trust">
+                    <div class="di-sidebar-section" style="margin-top:0; margin-bottom:0.45rem;">Trust Snapshot</div>
+                    <div class="di-sidebar-trust-top">
+                        <div class="di-sidebar-trust-score">{sidebar_overview['trust_score']}%</div>
+                        <div class="di-sidebar-trust-label">{sidebar_overview['trust_label']}</div>
+                    </div>
+                    <div class="di-meter-track">
+                        <div class="di-meter-fill {status_class}" style="width:{sidebar_overview['trust_score']}%;"></div>
+                    </div>
+                    <div class="di-sidebar-trust-copy">
+                        As of {_format_display_date(sidebar_overview['as_of_date'])}<br/>
+                        Coverage {_format_coverage_window(sidebar_overview['coverage_start'], sidebar_overview['coverage_end'])}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        st.caption("Validated inputs, deterministic calculations, and explicit caveats set the trust level for every output.")
+
+    return st.session_state.current_page
+
+
 def _render_data_quality_banner(data: dict, validation_results: dict, metrics_outputs: dict | None = None):
-    """Render a compact, explicit trust banner above computed outputs."""
+    """Render a premium trust banner above computed outputs."""
     if not data or not validation_results:
         return
 
@@ -99,31 +1227,59 @@ def _render_data_quality_banner(data: dict, validation_results: dict, metrics_ou
     overview = get_data_quality_overview(data, validation_results, as_of_date=as_of_date)
     status = overview["status"]
 
-    if status == "blocked":
-        st.error(overview["message"])
-    elif status == "caution":
-        st.warning(overview["message"])
-    else:
-        st.success(overview["message"])
+    status_class = "ready" if status == "ready" else ("caution" if status == "caution" else "blocked")
+    as_of_display = _format_display_date(overview["as_of_date"])
+    coverage_display = _format_coverage_window(overview["coverage_start"], overview["coverage_end"])
+    freshness_days = [row["freshness_days"] for row in overview["datasets"] if row["freshness_days"] is not None]
+    freshness_display = f"{max(freshness_days)} day lag" if freshness_days else "Fully current"
 
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Blocking Errors", overview["blocking_error_count"])
-    with col2:
-        st.metric("Warnings", overview["warning_count"])
-    with col3:
-        as_of_display = overview["as_of_date"].date().isoformat() if overview["as_of_date"] is not None else "N/A"
-        st.metric("As-of Date", as_of_display)
-    with col4:
-        if overview["coverage_start"] is not None and overview["coverage_end"] is not None:
-            coverage_display = (
-                f"{pd.to_datetime(overview['coverage_start']).date()} -> "
-                f"{pd.to_datetime(overview['coverage_end']).date()}"
-            )
-        else:
-            coverage_display = "N/A"
-        st.metric("Coverage", coverage_display)
+    st.markdown(
+        f"""
+        <div class="di-trust-banner">
+            <div class="di-trust-layout">
+                <div>
+                    <div class="di-trust-eyebrow">Data Trust</div>
+                    <div class="di-trust-title">Outputs remain deterministic, but trust should be explicit.</div>
+                    <div class="di-trust-score-row">
+                        <div class="di-trust-score">{overview['trust_score']}%</div>
+                        <div class="di-pill {status_class}">{overview['trust_label']}</div>
+                    </div>
+                    <div class="di-meter-track">
+                        <div class="di-meter-fill {status_class}" style="width:{overview['trust_score']}%;"></div>
+                    </div>
+                    <div class="di-trust-message">
+                        {overview["message"]} Deterministic calculations remain visible, but they should be read in light of the current validation, coverage, and freshness status.
+                    </div>
+                </div>
+                <div class="di-trust-stats">
+                    <div class="di-stat-card">
+                        <div class="di-stat-label">Blocking Errors</div>
+                        <div class="di-stat-value">{overview['blocking_error_count']}</div>
+                        <div class="di-stat-detail">Issues that can make outputs incomplete or unreliable.</div>
+                    </div>
+                    <div class="di-stat-card">
+                        <div class="di-stat-label">Warnings</div>
+                        <div class="di-stat-value">{overview['warning_count']}</div>
+                        <div class="di-stat-detail">Inputs worth reviewing before using outputs with confidence.</div>
+                    </div>
+                    <div class="di-stat-card">
+                        <div class="di-stat-label">As-of Date</div>
+                        <div class="di-stat-value">{as_of_display}</div>
+                        <div class="di-stat-detail">Deterministic statements are computed against this effective date.</div>
+                    </div>
+                    <div class="di-stat-card">
+                        <div class="di-stat-label">Coverage Window</div>
+                        <div class="di-stat-value">{coverage_display}</div>
+                        <div class="di-stat-detail">{freshness_display} across the dated input tables.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
+    _render_layout_gap("content")
     with st.expander("Dataset Coverage & Freshness", expanded=False):
         coverage_rows = []
         for dataset in overview["datasets"]:
@@ -131,13 +1287,194 @@ def _render_data_quality_banner(data: dict, validation_results: dict, metrics_ou
                 {
                     "Dataset": dataset["dataset"],
                     "Rows": dataset["row_count"],
-                    "Coverage Start": dataset["coverage_start"].date().isoformat() if dataset["coverage_start"] is not None else "N/A",
-                    "Coverage End": dataset["coverage_end"].date().isoformat() if dataset["coverage_end"] is not None else "N/A",
+                    "Coverage Start": _format_display_date(dataset["coverage_start"]),
+                    "Coverage End": _format_display_date(dataset["coverage_end"]),
                     "Freshness vs As-of (days)": dataset["freshness_days"] if dataset["freshness_days"] is not None else "N/A",
                 }
             )
-        st.dataframe(pd.DataFrame(coverage_rows), use_container_width=True, hide_index=True)
+        _render_modern_table(pd.DataFrame(coverage_rows))
         st.caption("Deterministic outputs are only as trustworthy as the loaded CSV coverage and validation status.")
+    return overview
+
+
+def _get_cached_insights(metrics_outputs: dict, data: dict):
+    """Build deterministic insights once per metrics bundle."""
+    cache_key = metrics_outputs.get("cache_key", "default")
+    if st.session_state.get("overview_insights_cache_key") != cache_key:
+        st.session_state.overview_insights = generate_insights(
+            projects_metrics=metrics_outputs.get("projects_metrics"),
+            projects_metrics_monthly=metrics_outputs.get("projects_metrics_monthly"),
+            employee_utilization=metrics_outputs.get("employee_utilization"),
+            income_statement_monthly=metrics_outputs.get("income_statement_monthly"),
+            cashflow_monthly=metrics_outputs.get("cashflow_monthly"),
+            invoices=data.get("invoices"),
+            as_of_date=metrics_outputs.get("filters", {}).get("as_of_date"),
+        )
+        st.session_state.overview_insights_cache_key = cache_key
+    return st.session_state.get("overview_insights", [])
+
+
+def _render_insight_card(insight: dict):
+    severity = escape(str(insight.get("severity", "info")))
+    drivers = insight.get("drivers", [])
+    driver_text = " ".join(drivers[:2]) if drivers else "Derived directly from the current deterministic metrics bundle."
+    card_markup = (
+        f'<div class="di-insight-card">'
+        f'<div class="di-insight-topline">'
+        f'<div class="di-insight-entity">{escape(str(insight.get("entity", "Company")))}</div>'
+        f'<div class="di-severity-pill {severity}">{severity}</div>'
+        f'</div>'
+        f'<div class="di-insight-message">{escape(str(insight.get("message", "No insight available.")))}</div>'
+        f'<div class="di-insight-driver">{escape(driver_text)}</div>'
+        f'</div>'
+    )
+    st.markdown(card_markup, unsafe_allow_html=True)
+
+
+def _render_overview_page():
+    """Render the refined overview page."""
+    if st.session_state.data is None:
+        st.error("No data loaded. Please check Data Quality page.")
+        return
+
+    data = st.session_state.data
+    _render_page_shell("Overview Dashboard")
+
+    min_date, max_date = _get_data_date_bounds(data)
+    if min_date is not None and max_date is not None:
+        _open_surface()
+        _render_surface_header("Reporting window", "Select the deterministic period used for the operating view below.")
+        col1, col2 = st.columns(2, gap="large")
+        with col1:
+            start_date = st.date_input("Start Date", value=min_date.date())
+        with col2:
+            end_date = st.date_input("End Date", value=max_date.date())
+        _close_surface()
+        start_date_ts = pd.Timestamp(start_date)
+        end_date_ts = pd.Timestamp(end_date)
+    else:
+        start_date_ts = None
+        end_date_ts = None
+
+    _render_layout_gap("section")
+    metrics_outputs = _build_metrics_outputs(data, start_date_ts, end_date_ts)
+    overview = _render_data_quality_banner(data, st.session_state.validation_results, metrics_outputs)
+    _render_layout_gap("section")
+    insights_list = _get_cached_insights(metrics_outputs, data)
+
+    income_stmt = metrics_outputs["income_statement_monthly"]
+    cashflow_stmt = metrics_outputs["cashflow_monthly"]
+    project_metrics = metrics_outputs["projects_metrics"]
+    monthly_income = income_stmt[income_stmt["month"] != "Total"]
+    monthly_cashflow = cashflow_stmt[cashflow_stmt["month"] != "Total"]
+
+    total_revenue = income_stmt[income_stmt["month"] == "Total"]["revenue"].iloc[0]
+    total_gross_profit = income_stmt[income_stmt["month"] == "Total"]["gross_profit"].iloc[0]
+    gross_margin = (total_gross_profit / total_revenue * 100) if total_revenue > 0 else 0
+    ebitda = income_stmt[income_stmt["month"] == "Total"]["ebitda"].iloc[0]
+    cash_collected = cashflow_stmt[cashflow_stmt["month"] == "Total"]["cash_in"].iloc[0]
+    ending_cash = monthly_cashflow["ending_cash"].iloc[-1] if len(monthly_cashflow) > 0 else st.session_state.starting_cash
+    runway = compute_runway(cashflow_stmt, st.session_state.starting_cash)
+    runway_display = f"{runway:.1f} months" if runway != float("inf") else "Sustained"
+
+    _open_surface()
+    _render_surface_header(
+        "Current operating picture",
+        f"Trust score {overview['trust_score']}%. All figures below are deterministic and aligned to the selected reporting window.",
+    )
+    kpi_cards = [
+        ("Total Revenue", f"EUR {total_revenue:,.0f}", "Accrual-basis revenue across the selected window.", "accent"),
+        ("Gross Profit", f"EUR {total_gross_profit:,.0f}", f"{gross_margin:.1f}% gross margin.", "good" if gross_margin >= 30 else "caution"),
+        ("EBITDA", f"EUR {ebitda:,.0f}", "Operating profit after overhead, before financing and taxes.", "good" if ebitda >= 0 else "danger"),
+        ("Cash Collected", f"EUR {cash_collected:,.0f}", "Cash received over the selected reporting window.", "accent"),
+        ("Ending Cash Balance", f"EUR {ending_cash:,.0f}", f"Starting from EUR {st.session_state.starting_cash:,.0f}.", "good" if ending_cash >= 0 else "danger"),
+        ("Runway", runway_display, "Months of remaining runway at the current net cash profile.", "accent" if runway == float('inf') or runway >= 6 else "caution"),
+    ]
+    _render_kpi_grid(kpi_cards)
+    _close_surface()
+
+    _render_layout_gap("section")
+    _open_surface()
+    _render_surface_header(
+        "Short insights summary",
+        "Highest-priority deterministic signals from the current projects, people, company, and invoice data.",
+    )
+    if insights_list:
+        ranked_insights = sorted(
+            insights_list,
+            key=lambda item: {"critical": 0, "warning": 1, "info": 2}.get(item.get("severity"), 3),
+        )[:3]
+        _render_insight_grid(ranked_insights)
+    else:
+        st.info("No material deterministic insights were generated for the current reporting window.")
+    _close_surface()
+
+    _render_layout_gap("section")
+    monthly_income_display = monthly_income.copy()
+    monthly_income_display["month"] = monthly_income_display["month"].astype(str)
+
+    fig1 = go.Figure()
+    fig1.add_trace(go.Scatter(x=monthly_income_display["month"], y=monthly_income_display["revenue"], mode="lines", name="Revenue", line=dict(color="#36d39b", width=1.9)))
+    fig1.add_trace(go.Scatter(x=monthly_income_display["month"], y=monthly_income_display["cogs"], mode="lines", name="COGS", line=dict(color="#ff7d6d", width=1.8)))
+    fig1.add_trace(go.Scatter(x=monthly_income_display["month"], y=monthly_income_display["ebitda"], mode="lines", name="EBITDA", line=dict(color="#f3c86d", width=1.95)))
+    fig1.update_layout(xaxis_title="Month", yaxis_title="EUR", hovermode="x unified")
+    _apply_chart_theme(fig1)
+
+    monthly_cashflow_display = monthly_cashflow.copy()
+    monthly_cashflow_display["month"] = monthly_cashflow_display["month"].astype(str)
+    fig2 = go.Figure()
+    fig2.add_trace(go.Bar(x=monthly_cashflow_display["month"], y=monthly_cashflow_display["cash_in"], name="Cash In", marker_color="#36d39b"))
+    fig2.add_trace(go.Bar(x=monthly_cashflow_display["month"], y=-monthly_cashflow_display["cash_out_total"], name="Cash Out", marker_color="#ff8f73"))
+    fig2.add_trace(go.Scatter(x=monthly_cashflow_display["month"], y=monthly_cashflow_display["ending_cash"], mode="lines", name="Ending Cash", line=dict(color="#85baff", width=1.95)))
+    fig2.update_layout(xaxis_title="Month", yaxis_title="EUR", barmode="group", bargap=0.26, hovermode="x unified")
+    _apply_chart_theme(fig2)
+
+    chart_col1, chart_col2 = st.columns([1.08, 0.92], gap="large")
+    with chart_col1:
+        _open_surface()
+        _render_surface_header("Revenue, COGS, and EBITDA", "Accrual performance across the current reporting window.")
+        st.plotly_chart(fig1, use_container_width=True)
+        _close_surface()
+    with chart_col2:
+        _open_surface()
+        _render_surface_header("Cash movement and ending balance", "Cash receipts, cash outflows, and ending cash over time.")
+        st.plotly_chart(fig2, use_container_width=True)
+        _close_surface()
+
+    _render_layout_gap("section")
+    table_col1, table_col2 = st.columns(2, gap="large")
+    with table_col1:
+        _open_surface()
+        _render_surface_header("Top projects by gross profit", "Projects contributing the most gross profit in the selected period.")
+        top_projects = (
+            project_metrics.nlargest(10, "gross_profit")[["project_id", "revenue", "gross_profit", "gross_margin_pct"]]
+            .rename(columns={"project_id": "Project", "revenue": "Revenue", "gross_profit": "Gross Profit", "gross_margin_pct": "Gross Margin"})
+        )
+        _render_modern_table(
+            top_projects,
+            formatters={
+                "Revenue": lambda value: f"EUR {value:,.0f}",
+                "Gross Profit": lambda value: f"EUR {value:,.0f}",
+                "Gross Margin": lambda value: f"{value:.1%}",
+            },
+        )
+        _close_surface()
+    with table_col2:
+        _open_surface()
+        _render_surface_header("Bottom projects by gross margin", "The weakest-margin projects that deserve immediate review.")
+        bottom_projects = (
+            project_metrics.nsmallest(10, "gross_margin_pct")[["project_id", "revenue", "gross_profit", "gross_margin_pct"]]
+            .rename(columns={"project_id": "Project", "revenue": "Revenue", "gross_profit": "Gross Profit", "gross_margin_pct": "Gross Margin"})
+        )
+        _render_modern_table(
+            bottom_projects,
+            formatters={
+                "Revenue": lambda value: f"EUR {value:,.0f}",
+                "Gross Profit": lambda value: f"EUR {value:,.0f}",
+                "Gross Margin": lambda value: f"{value:.1%}",
+            },
+        )
+        _close_surface()
 
 
 # Load data on first run
@@ -147,6 +1484,9 @@ if st.session_state.data is None:
 
 def page_overview():
     """Overview Dashboard page."""
+    _render_overview_page()
+    return
+    """
     st.title("📊 Overview Dashboard")
     
     if st.session_state.data is None:
@@ -154,14 +1494,22 @@ def page_overview():
         return
     
     data = st.session_state.data
+    _render_page_shell("Overview Dashboard")
     
     min_date, max_date = _get_data_date_bounds(data)
     if min_date is not None and max_date is not None:
+        _render_section_label("Analysis Window")
+        _open_surface()
+        _render_surface_header(
+            "Reporting window",
+            "Select the deterministic period used for the operating view below.",
+        )
         col1, col2 = st.columns(2)
         with col1:
             start_date = st.date_input("Start Date", value=min_date.date())
         with col2:
             end_date = st.date_input("End Date", value=max_date.date())
+        _close_surface()
         
         start_date_ts = pd.Timestamp(start_date)
         end_date_ts = pd.Timestamp(end_date)
@@ -170,77 +1518,106 @@ def page_overview():
         end_date_ts = None
 
     metrics_outputs = _build_metrics_outputs(data, start_date_ts, end_date_ts)
-    _render_data_quality_banner(data, st.session_state.validation_results, metrics_outputs)
+    overview = _render_data_quality_banner(data, st.session_state.validation_results, metrics_outputs)
+    st.markdown("<style>[data-testid='stMetric'] { display: none; }</style>", unsafe_allow_html=True)
     income_stmt = metrics_outputs["income_statement_monthly"]
     cashflow_stmt = metrics_outputs["cashflow_monthly"]
     project_metrics = metrics_outputs["projects_metrics"]
     
-    # KPI Cards
-    st.subheader("Key Metrics")
+    _render_section_label("Operating Snapshot")
     monthly_income = income_stmt[income_stmt["month"] != "Total"]
     monthly_cashflow = cashflow_stmt[cashflow_stmt["month"] != "Total"]
+    total_revenue = income_stmt[income_stmt["month"] == "Total"]["revenue"].iloc[0]
+    total_gross_profit = income_stmt[income_stmt["month"] == "Total"]["gross_profit"].iloc[0]
+    gross_margin = (total_gross_profit / total_revenue * 100) if total_revenue > 0 else 0
+    ebitda = income_stmt[income_stmt["month"] == "Total"]["ebitda"].iloc[0]
+    cash_collected = cashflow_stmt[cashflow_stmt["month"] == "Total"]["cash_in"].iloc[0]
+    ending_cash = monthly_cashflow["ending_cash"].iloc[-1] if len(monthly_cashflow) > 0 else st.session_state.starting_cash
+    runway = compute_runway(cashflow_stmt, st.session_state.starting_cash)
+    runway_display = f"{runway:.1f} months" if runway != float("inf") else "Sustained"
     
+    _open_surface()
+    _render_surface_header(
+        "Current operating picture",
+        f"Trust score {overview['trust_score']}%. The outputs below remain deterministic even when trust is lowered by validation or coverage issues.",
+    )
     col1, col2, col3, col4 = st.columns(4)
     with col1:
+        _render_kpi_card("Total Revenue", f"EUR {total_revenue:,.0f}", "Accrual-basis revenue across the selected window.", tone="accent")
         total_revenue = income_stmt[income_stmt["month"] == "Total"]["revenue"].iloc[0]
         st.metric("Total Revenue (Accrual)", f"€{total_revenue:,.0f}")
     with col2:
+        _render_kpi_card("Gross Profit", f"EUR {total_gross_profit:,.0f}", f"{gross_margin:.1f}% gross margin.", tone="good" if gross_margin >= 30 else "caution")
         total_gross_profit = income_stmt[income_stmt["month"] == "Total"]["gross_profit"].iloc[0]
         gross_margin = (total_gross_profit / total_revenue * 100) if total_revenue > 0 else 0
         st.metric("Gross Profit", f"€{total_gross_profit:,.0f}", f"{gross_margin:.1f}%")
     with col3:
+        _render_kpi_card("EBITDA", f"EUR {ebitda:,.0f}", "Operating profit after overhead, before financing and taxes.", tone="good" if ebitda >= 0 else "danger")
         ebitda = income_stmt[income_stmt["month"] == "Total"]["ebitda"].iloc[0]
         st.metric("EBITDA", f"€{ebitda:,.0f}")
     with col4:
+        _render_kpi_card("Cash Collected", f"EUR {cash_collected:,.0f}", "Cash received over the selected reporting window.", tone="accent")
         cash_collected = cashflow_stmt[cashflow_stmt["month"] == "Total"]["cash_in"].iloc[0]
         st.metric("Cash Collected", f"€{cash_collected:,.0f}")
     
     col1, col2 = st.columns(2)
     with col1:
+        _render_kpi_card("Ending Cash Balance", f"EUR {ending_cash:,.0f}", f"Starting from EUR {st.session_state.starting_cash:,.0f}.", tone="good" if ending_cash >= 0 else "danger")
         ending_cash = monthly_cashflow["ending_cash"].iloc[-1] if len(monthly_cashflow) > 0 else st.session_state.starting_cash
         st.metric("Ending Cash Balance", f"€{ending_cash:,.0f}")
     with col2:
+        _render_kpi_card("Runway", runway_display, "Months of remaining runway at the current net cash profile.", tone="accent" if runway == float("inf") or runway >= 6 else "caution")
         runway = compute_runway(cashflow_stmt, st.session_state.starting_cash)
         runway_display = f"{runway:.1f}" if runway != float('inf') else "∞"
         st.metric("Runway (months)", runway_display)
     
-    # Charts
-    st.subheader("Financial Trends")
-    
-    # Revenue vs COGS vs EBITDA
+    _close_surface()
+
+    _render_section_label("Financial Trends")
     monthly_income_display = monthly_income.copy()
     monthly_income_display["month"] = monthly_income_display["month"].astype(str)
     
     fig1 = go.Figure()
     fig1.add_trace(go.Scatter(x=monthly_income_display["month"], y=monthly_income_display["revenue"],
-                              mode='lines+markers', name='Revenue', line=dict(color='green')))
+                              mode='lines+markers', name='Revenue', line=dict(color='#7ec6a4', width=2.8)))
     fig1.add_trace(go.Scatter(x=monthly_income_display["month"], y=monthly_income_display["cogs"],
-                              mode='lines+markers', name='COGS', line=dict(color='red')))
+                              mode='lines+markers', name='COGS', line=dict(color='#d77a7a', width=2.6)))
     fig1.add_trace(go.Scatter(x=monthly_income_display["month"], y=monthly_income_display["ebitda"],
-                              mode='lines+markers', name='EBITDA', line=dict(color='blue')))
-    fig1.update_layout(title="Revenue vs COGS vs EBITDA", xaxis_title="Month", yaxis_title="EUR",
+                              mode='lines+markers', name='EBITDA', line=dict(color='#d9c7a2', width=2.8)))
+    fig1.update_layout(xaxis_title="Month", yaxis_title="EUR",
                       hovermode='x unified')
-    st.plotly_chart(fig1, use_container_width=True)
-    
-    # Cashflow chart
+    _apply_chart_theme(fig1)
+
     monthly_cashflow_display = monthly_cashflow.copy()
     monthly_cashflow_display["month"] = monthly_cashflow_display["month"].astype(str)
     
     fig2 = go.Figure()
     fig2.add_trace(go.Bar(x=monthly_cashflow_display["month"], y=monthly_cashflow_display["cash_in"],
-                         name='Cash In', marker_color='green'))
+                         name='Cash In', marker_color='#7ec6a4'))
     fig2.add_trace(go.Bar(x=monthly_cashflow_display["month"], y=-monthly_cashflow_display["cash_out_total"],
-                         name='Cash Out', marker_color='red'))
+                         name='Cash Out', marker_color='#d77a7a'))
     fig2.add_trace(go.Scatter(x=monthly_cashflow_display["month"], y=monthly_cashflow_display["ending_cash"],
-                             mode='lines+markers', name='Ending Cash', line=dict(color='blue', width=3)))
-    fig2.update_layout(title="Cashflow: In vs Out + Ending Cash", xaxis_title="Month", yaxis_title="EUR",
+                             mode='lines+markers', name='Ending Cash', line=dict(color='#b7bcc6', width=3)))
+    fig2.update_layout(xaxis_title="Month", yaxis_title="EUR",
                       barmode='group', hovermode='x unified')
-    st.plotly_chart(fig2, use_container_width=True)
-    
-    # Top/Bottom Projects
+    _apply_chart_theme(fig2)
+
+    chart_col1, chart_col2 = st.columns(2)
+    with chart_col1:
+        _open_surface()
+        _render_surface_header("Revenue, COGS, and EBITDA", "Accrual performance across the current reporting window.")
+        st.plotly_chart(fig1, use_container_width=True)
+        _close_surface()
+    with chart_col2:
+        _open_surface()
+        _render_surface_header("Cash movement and ending balance", "Cash receipts, cash outflows, and ending cash over time.")
+        st.plotly_chart(fig2, use_container_width=True)
+        _close_surface()
+
+    _render_section_label("Project Distribution")
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("Top 10 Projects by Gross Profit")
+        _render_surface_header("Top projects by gross profit", "Projects contributing the most gross profit in the selected period.")
         top_projects = project_metrics.nlargest(10, "gross_profit")[
             ["project_id", "revenue", "gross_profit", "gross_margin_pct"]
         ]
@@ -251,7 +1628,7 @@ def page_overview():
         }), use_container_width=True)
     
     with col2:
-        st.subheader("Bottom 10 Projects by Gross Margin %")
+        _render_surface_header("Bottom projects by gross margin", "The weakest-margin projects that deserve immediate review.")
         bottom_projects = project_metrics.nsmallest(10, "gross_margin_pct")[
             ["project_id", "revenue", "gross_profit", "gross_margin_pct"]
         ]
@@ -260,6 +1637,7 @@ def page_overview():
             "gross_profit": "€{:,.0f}",
             "gross_margin_pct": "{:.1%}"
         }), use_container_width=True)
+    """
 
 
 def page_projects():
@@ -269,8 +1647,10 @@ def page_projects():
         return
     
     data = st.session_state.data
+    _render_page_shell("Projects")
     metrics_outputs = _build_metrics_outputs(data)
     _render_data_quality_banner(data, st.session_state.validation_results, metrics_outputs)
+    _render_layout_gap("section")
     projects_metrics = metrics_outputs["projects_metrics"]
     
     # Render the refactored projects page
@@ -279,17 +1659,17 @@ def page_projects():
 
 def page_people():
     """People/Utilization page."""
-    st.title("👥 People & Utilization")
-    
     if st.session_state.data is None:
         st.error("No data loaded.")
         return
     
     data = st.session_state.data
+    _render_page_shell("People")
     employees = data["employees"]
     time_entries = data["time_entries"]
     metrics_outputs = _build_metrics_outputs(data)
     _render_data_quality_banner(data, st.session_state.validation_results, metrics_outputs)
+    _render_layout_gap("section")
     emp_utilization = metrics_outputs["employee_utilization"]
     
     # Merge with employee details
@@ -320,6 +1700,8 @@ def page_people():
         fig1 = px.histogram(emp_display, x="utilization_pct", nbins=20,
                            title="Distribution of Utilization %",
                            labels={"utilization_pct": "Utilization %", "count": "Number of Employees"})
+        fig1.update_traces(marker_color="#f3c86d")
+        _apply_chart_theme(fig1)
         st.plotly_chart(fig1, use_container_width=True)
     
     with col2:
@@ -334,9 +1716,10 @@ def page_people():
         fig2 = go.Figure(data=[go.Bar(
             x=["Underutilized (<60%)", "Optimal (60-85%)", "Overutilized (>85%)"],
             y=[underutilized, optimal, overutilized],
-            marker_color=['red', 'green', 'orange']
+            marker_color=['#ff7d6d', '#36d39b', '#f3c86d']
         )])
         fig2.update_layout(title="Utilization Status", yaxis_title="Number of Employees")
+        _apply_chart_theme(fig2)
         st.plotly_chart(fig2, use_container_width=True)
     
     # Billable vs Non-billable over time
@@ -352,12 +1735,13 @@ def page_people():
         
         fig3 = go.Figure()
         fig3.add_trace(go.Bar(x=monthly_agg["month"], y=monthly_agg["billable_hours"],
-                             name='Billable', marker_color='green'))
+                             name='Billable', marker_color='#36d39b'))
         fig3.add_trace(go.Bar(x=monthly_agg["month"], y=monthly_agg["non_billable_hours"],
-                             name='Non-billable', marker_color='red'))
+                             name='Non-billable', marker_color='#ff7d6d'))
         fig3.update_layout(title="Billable vs Non-billable Hours by Month",
                           xaxis_title="Month", yaxis_title="Hours",
                           barmode='stack')
+        _apply_chart_theme(fig3)
         st.plotly_chart(fig3, use_container_width=True)
     
     # Identify underutilized and overutilized
@@ -399,13 +1783,12 @@ def page_people():
 
 def page_financial_statements():
     """Financial Statements page."""
-    st.title("💰 Financial Statements")
-    
     if st.session_state.data is None:
         st.error("No data loaded.")
         return
     
     data = st.session_state.data
+    _render_page_shell("Financial Statements")
     time_entries = data["time_entries"]
     invoices = data["invoices"]
     expenses = data["expenses"]
@@ -429,6 +1812,7 @@ def page_financial_statements():
     tab1, tab2 = st.tabs(["Income Statement", "Cashflow Statement"])
     metrics_outputs = _build_metrics_outputs(data, start_date_ts, end_date_ts)
     _render_data_quality_banner(data, st.session_state.validation_results, metrics_outputs)
+    _render_layout_gap("section")
     
     with tab1:
         st.subheader("Income Statement (Accrual Basis)")
@@ -486,17 +1870,17 @@ def page_financial_statements():
 
 def page_data_quality():
     """Data Quality page."""
-    st.title("🔍 Data Quality")
-    
     validation_results = st.session_state.validation_results
     data = st.session_state.data
     
+    _render_page_shell("Data Quality")
     if validation_results is None:
         st.warning("No validation results available.")
         return
 
     overview = get_data_quality_overview(data or {}, validation_results)
     _render_data_quality_banner(data or {}, validation_results)
+    _render_layout_gap("section")
 
     st.subheader("Validation Status")
     col1, col2 = st.columns(2)
@@ -522,15 +1906,8 @@ def page_data_quality():
             st.info("ℹ️ No warnings.")
     
     st.subheader("Coverage Summary")
-    st.write(
-        f"As-of date: **{overview['as_of_date'].date().isoformat() if overview['as_of_date'] is not None else 'N/A'}**"
-    )
-    if overview["coverage_start"] is not None and overview["coverage_end"] is not None:
-        st.write(
-            "Overall coverage: "
-            f"**{pd.to_datetime(overview['coverage_start']).date().isoformat()} -> "
-            f"{pd.to_datetime(overview['coverage_end']).date().isoformat()}**"
-        )
+    st.write(f"As-of date: **{_format_display_date(overview['as_of_date'])}**")
+    st.write(f"Overall coverage: **{_format_coverage_window(overview['coverage_start'], overview['coverage_end'])}**")
 
     # Data Summary
     if data:
@@ -560,8 +1937,10 @@ def page_briefs():
     data = st.session_state.data
     
     try:
+        _render_page_shell("Weekly Brief")
         metrics_outputs = _build_metrics_outputs(data)
         _render_data_quality_banner(data, st.session_state.validation_results, metrics_outputs)
+        _render_layout_gap("section")
         render_briefs_tab(metrics_outputs, data, st.session_state.starting_cash)
         
     except Exception as e:
@@ -577,8 +1956,10 @@ def page_insights():
     
     data = st.session_state.data
     try:
+        _render_page_shell("Insights & Explanations")
         metrics_outputs = _build_metrics_outputs(data)
         _render_data_quality_banner(data, st.session_state.validation_results, metrics_outputs)
+        _render_layout_gap("section")
         render_insights_tab(metrics_outputs, data, st.session_state.starting_cash)
         
     except Exception as e:
@@ -589,28 +1970,13 @@ def page_insights():
 # Main app
 def main():
     """Main app function."""
-    # Sidebar navigation
-    st.sidebar.title("Navigation")
-    st.sidebar.caption("Deterministic metrics are the source of truth. AI only explains computed facts.")
-    st.session_state.starting_cash = st.sidebar.number_input(
-        "Starting Cash (EUR)",
-        min_value=0.0,
-        value=st.session_state.starting_cash,
-        step=1000.0,
-    )
-    
-    # Demo mode: show only selected pages
     if DEMO_MODE:
         available_pages = ["Overview Dashboard", "Projects", "Insights & Explanations"]
     else:
         available_pages = ["Overview Dashboard", "Projects", "People", "Financial Statements", "Weekly Brief", "Insights & Explanations", "Data Quality"]
-    
-    page = st.sidebar.radio(
-        "Go to",
-        available_pages
-    )
-    
-    # Route to page
+
+    page = _render_sidebar_shell(available_pages)
+
     if page == "Overview Dashboard":
         page_overview()
     elif page == "Projects":

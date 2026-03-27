@@ -23,7 +23,6 @@ def render_briefs_tab(
     - Key changes (if available)
     - Shareable brief generator
     """
-    st.title("📋 Weekly Brief")
     st.caption("Focus on what matters most - ranked by severity and impact")
     
     cache_key = metrics_outputs.get("cache_key", "default")

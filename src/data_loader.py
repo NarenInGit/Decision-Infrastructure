@@ -174,6 +174,36 @@ def _add_detail(details: List[Dict[str, str]], level: str, message: str) -> None
     details.append({"level": level, "message": message})
 
 
+def _compute_trust_score(
+    blocking_error_count: int,
+    warning_count: int,
+    dataset_rows: List[Dict[str, object]],
+) -> int:
+    """Score trust deterministically from validation severity and freshness."""
+    score = 100
+    score -= min(75, blocking_error_count * 35)
+    score -= min(18, warning_count * 6)
+
+    freshness_values = [
+        int(row["freshness_days"])
+        for row in dataset_rows
+        if row.get("freshness_days") is not None
+    ]
+    max_freshness_days = max(freshness_values, default=0)
+
+    if max_freshness_days > 90:
+        score -= 18
+    elif max_freshness_days > 30:
+        score -= 12
+    elif max_freshness_days > 7:
+        score -= 6
+
+    if dataset_rows and all(row.get("coverage_end") is None for row in dataset_rows):
+        score -= 10
+
+    return max(10, min(100, int(score)))
+
+
 def load_and_validate_data(data_dir: Path) -> Tuple[Dict[str, pd.DataFrame], Dict[str, List[str]]]:
     """
     Load all CSVs and validate them.
@@ -329,19 +359,25 @@ def get_data_quality_overview(
 
     if blocking_error_count > 0:
         status = "blocked"
+        trust_label = "Lower Trust"
         message = "Outputs are based on data with blocking validation errors. Numbers may be incomplete or unreliable."
     elif warning_count > 0:
         status = "caution"
+        trust_label = "Caution"
         message = "Outputs are computed, but the input data has warnings that may reduce confidence."
     else:
         status = "ready"
+        trust_label = "Standard"
         message = "No blocking validation issues detected. Outputs are based on the current validated data."
 
     overall_start = min((start for start, _ in date_coverage), default=None)
     overall_end = max((end for _, end in date_coverage), default=None)
+    trust_score = _compute_trust_score(blocking_error_count, warning_count, dataset_rows)
 
     return {
         "status": status,
+        "trust_label": trust_label,
+        "trust_score": trust_score,
         "message": message,
         "blocking_error_count": blocking_error_count,
         "warning_count": warning_count,

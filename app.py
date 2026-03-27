@@ -125,6 +125,8 @@ def _inject_app_theme():
             --radius-sm: 14px;
             --control-radius: 14px;
             --control-height: 48px;
+            --accordion-duration: 500ms;
+            --accordion-ease: cubic-bezier(0.4, 0, 0.2, 1);
             --sidebar-control-height: 50px;
             --space-content: 1.1rem;
             --space-section: 1.6rem;
@@ -768,12 +770,50 @@ def _inject_app_theme():
             border-radius: var(--control-radius);
             background: rgba(14, 19, 27, 0.96);
             overflow: hidden;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            user-select: none;
+            transition: all var(--accordion-duration) var(--accordion-ease);
+        }
+        [data-testid="stExpander"]:has(details[open]) {
+            border-radius: 18px;
         }
         [data-testid="stExpander"] details {
+            display: grid !important;
+            grid-template-rows: minmax(var(--control-height), auto) 0fr;
             border: 0 !important;
             background: transparent !important;
             box-shadow: none !important;
             border-radius: inherit !important;
+            transition: grid-template-rows var(--accordion-duration) var(--accordion-ease);
+        }
+        [data-testid="stExpander"] details[open] {
+            grid-template-rows: minmax(var(--control-height), auto) 1fr;
+        }
+        [data-testid="stExpander"] details > div {
+            min-height: 0;
+            overflow: hidden !important;
+            opacity: 0;
+            transform: translateY(0.4rem);
+            transition:
+                opacity var(--accordion-duration) var(--accordion-ease),
+                transform var(--accordion-duration) var(--accordion-ease);
+        }
+        [data-testid="stExpander"] details[open] > div {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        [data-testid="stExpander"] details > div > div {
+            opacity: 0;
+            transform: translateY(0.9rem);
+            transition:
+                opacity var(--accordion-duration) var(--accordion-ease),
+                transform var(--accordion-duration) var(--accordion-ease);
+        }
+        [data-testid="stExpander"] details[open] > div > div {
+            opacity: 1;
+            transform: translateY(0);
+            transition-delay: 75ms;
         }
         [data-testid="stExpander"] summary {
             border: 0 !important;
@@ -783,7 +823,11 @@ def _inject_app_theme():
             padding: 0 0.95rem !important;
             display: flex !important;
             align-items: center !important;
+            gap: 0.9rem;
             border-radius: inherit !important;
+            transition:
+                background var(--accordion-duration) var(--accordion-ease),
+                color var(--accordion-duration) var(--accordion-ease);
         }
         [data-testid="stExpander"] summary::before,
         [data-testid="stExpander"] summary::after {
@@ -794,6 +838,23 @@ def _inject_app_theme():
         [data-testid="stExpander"] summary div {
             color: var(--text) !important;
             line-height: 1.2 !important;
+            transition:
+                color var(--accordion-duration) var(--accordion-ease),
+                opacity var(--accordion-duration) var(--accordion-ease),
+                transform var(--accordion-duration) var(--accordion-ease);
+        }
+        [data-testid="stExpander"] summary svg {
+            color: rgba(255, 255, 255, 0.72) !important;
+            transition:
+                transform var(--accordion-duration) var(--accordion-ease),
+                color var(--accordion-duration) var(--accordion-ease);
+        }
+        [data-testid="stExpander"] details:not([open]) summary svg {
+            transform: rotate(180deg);
+        }
+        [data-testid="stExpander"] details[open] summary svg {
+            transform: rotate(0deg);
+            color: var(--text) !important;
         }
         .stDateInput > div,
         .stSelectbox > div,
@@ -815,6 +876,28 @@ def _inject_app_theme():
             color: var(--text) !important;
             box-shadow: none !important;
             min-height: var(--control-height) !important;
+            transition: all var(--accordion-duration) var(--accordion-ease) !important;
+        }
+        .stSelectbox div[data-baseweb="select"] > div:has([aria-expanded="true"]),
+        .stMultiSelect div[data-baseweb="select"] > div:has([aria-expanded="true"]),
+        .stDateInput [data-baseweb="input"]:focus-within {
+            border-radius: 18px !important;
+        }
+        .stSelectbox div[data-baseweb="select"] > div svg,
+        .stMultiSelect div[data-baseweb="select"] > div svg {
+            color: rgba(255, 255, 255, 0.72) !important;
+            transition:
+                transform var(--accordion-duration) var(--accordion-ease),
+                color var(--accordion-duration) var(--accordion-ease) !important;
+        }
+        .stSelectbox div[data-baseweb="select"] > div:not(:has([aria-expanded="true"])) svg,
+        .stMultiSelect div[data-baseweb="select"] > div:not(:has([aria-expanded="true"])) svg {
+            transform: rotate(180deg);
+        }
+        .stSelectbox div[data-baseweb="select"] > div:has([aria-expanded="true"]) svg,
+        .stMultiSelect div[data-baseweb="select"] > div:has([aria-expanded="true"]) svg {
+            transform: rotate(0deg);
+            color: var(--text) !important;
         }
         .stSelectbox div[data-baseweb="select"] [data-baseweb="select"] > div,
         .stMultiSelect div[data-baseweb="select"] [data-baseweb="select"] > div,
@@ -935,6 +1018,30 @@ def _inject_app_theme():
         [data-testid="stChatInput"] textarea {
             font-size: 0.95rem !important;
         }
+        [data-baseweb="popover"] [role="listbox"],
+        [data-baseweb="popover"] [data-baseweb="menu"] {
+            animation: di-dropdown-panel-in var(--accordion-duration) var(--accordion-ease);
+            transform-origin: top center;
+            overflow: hidden;
+        }
+        [data-baseweb="popover"] [role="option"],
+        [data-baseweb="popover"] [data-baseweb="menu"] > * {
+            opacity: 0;
+            transform: translateY(1rem);
+            animation: di-dropdown-item-in var(--accordion-duration) var(--accordion-ease) forwards;
+        }
+        [data-baseweb="popover"] [role="option"]:nth-child(1),
+        [data-baseweb="popover"] [data-baseweb="menu"] > *:nth-child(1) { animation-delay: 0ms; }
+        [data-baseweb="popover"] [role="option"]:nth-child(2),
+        [data-baseweb="popover"] [data-baseweb="menu"] > *:nth-child(2) { animation-delay: 75ms; }
+        [data-baseweb="popover"] [role="option"]:nth-child(3),
+        [data-baseweb="popover"] [data-baseweb="menu"] > *:nth-child(3) { animation-delay: 150ms; }
+        [data-baseweb="popover"] [role="option"]:nth-child(4),
+        [data-baseweb="popover"] [data-baseweb="menu"] > *:nth-child(4) { animation-delay: 225ms; }
+        [data-baseweb="popover"] [role="option"]:nth-child(5),
+        [data-baseweb="popover"] [data-baseweb="menu"] > *:nth-child(5) { animation-delay: 300ms; }
+        [data-baseweb="popover"] [role="option"]:nth-child(6),
+        [data-baseweb="popover"] [data-baseweb="menu"] > *:nth-child(6) { animation-delay: 375ms; }
         .stSelectbox div[data-baseweb="select"] > div:focus-within,
         .stMultiSelect div[data-baseweb="select"] > div:focus-within,
         .stTextInput [data-baseweb="base-input"]:focus-within,
@@ -942,6 +1049,26 @@ def _inject_app_theme():
         .stDateInput [data-baseweb="input"]:focus-within {
             border-color: rgba(243, 200, 109, 0.44) !important;
             box-shadow: 0 0 0 1px rgba(243, 200, 109, 0.2);
+        }
+        @keyframes di-dropdown-panel-in {
+            from {
+                opacity: 0;
+                transform: translateY(0.4rem);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes di-dropdown-item-in {
+            from {
+                opacity: 0;
+                transform: translateY(1rem);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
         hr {
             border-color: rgba(255, 255, 255, 0.08);

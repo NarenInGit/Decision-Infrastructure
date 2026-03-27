@@ -7,6 +7,8 @@ import re
 import pandas as pd
 from typing import Dict, List, Optional, Tuple
 
+from .context_builder import build_context
+
 
 def parse_intent(user_query: str) -> Dict:
     """
@@ -77,23 +79,18 @@ def retrieve_context(
             "trends": Dict (optional)
         }
     """
-    intent_type = intent["intent"]
-    entity_id = intent["entity_id"]
-    
-    if intent_type == "project":
-        return _retrieve_project_context(entity_id, metrics_outputs, insights_list)
-    elif intent_type == "employee":
-        return _retrieve_employee_context(entity_id, metrics_outputs, insights_list)
-    elif intent_type == "invoices":
-        return _retrieve_invoices_context(metrics_outputs, insights_list)
-    elif intent_type == "cashflow":
-        return _retrieve_cashflow_context(metrics_outputs, insights_list)
-    elif intent_type == "utilization":
-        return _retrieve_utilization_context(metrics_outputs, insights_list)
-    elif intent_type == "company":
-        return _retrieve_company_context(metrics_outputs, insights_list)
-    else:
-        return _retrieve_generic_context(metrics_outputs, insights_list)
+    compact_context = build_context(intent, metrics_outputs, insights_list, max_rows=10)
+    metrics = dict(compact_context.get("kpis", {}))
+    metrics.update(compact_context.get("table_snippets", {}))
+    trends = dict(compact_context.get("trends", {}))
+    if "recent_months" in compact_context.get("table_snippets", {}) and "recent_months" not in trends:
+        trends["recent_months"] = compact_context["table_snippets"]["recent_months"]
+
+    return {
+        "metrics": metrics,
+        "insights": compact_context.get("insights", []),
+        "trends": trends,
+    }
 
 
 def _retrieve_project_context(

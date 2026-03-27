@@ -10,7 +10,14 @@ from datetime import datetime
 from ..core.insights_engine import generate_insights
 from ..core.insights_chat import parse_intent, retrieve_context, build_deterministic_answer
 from ..ai.summary_builder import build_chat_summary, build_insights_summary
-from ..ai.local_llm import rewrite_answer, generate_insights_explanation, generate_narrative
+from ..ai.local_llm import (
+    generate_guarded_rewrite,
+    generate_fallback_explanation,
+    generate_insights_explanation,
+    generate_narrative,
+    rewrite_answer,
+    _generate_fallback_narrative,
+)
 from ..ai.guardrails import apply_guardrails, check_transformers_available
 
 
@@ -30,19 +37,7 @@ def render_insights_tab(
     # Initialize session state
     _initialize_session_state()
     
-    # Generate insights once
-    if "insights_list" not in st.session_state:
-        with st.spinner("Analyzing financial data..."):
-            st.session_state.insights_list = generate_insights(
-                projects_metrics=metrics_outputs.get("projects_metrics"),
-                projects_metrics_monthly=metrics_outputs.get("projects_metrics_monthly"),
-                employee_utilization=metrics_outputs.get("employee_utilization"),
-                income_statement_monthly=metrics_outputs.get("income_statement_monthly"),
-                cashflow_monthly=metrics_outputs.get("cashflow_monthly"),
-                invoices=data.get("invoices")
-            )
-    
-    insights_list = st.session_state.insights_list
+    insights_list = _get_or_build_insights(metrics_outputs, data)
     
     # Header
     st.title("💬 Ask Your Data")
@@ -87,6 +82,24 @@ def _initialize_session_state():
         ]
     if "use_ai_phrasing" not in st.session_state:
         st.session_state.use_ai_phrasing = False
+
+
+def _get_or_build_insights(metrics_outputs: Dict, data: Dict) -> List[Dict]:
+    """Build insights once per metrics bundle."""
+    cache_key = metrics_outputs.get("cache_key", "default")
+    if st.session_state.get("insights_cache_key") != cache_key:
+        with st.spinner("Analyzing financial data..."):
+            st.session_state.insights_list = generate_insights(
+                projects_metrics=metrics_outputs.get("projects_metrics"),
+                projects_metrics_monthly=metrics_outputs.get("projects_metrics_monthly"),
+                employee_utilization=metrics_outputs.get("employee_utilization"),
+                income_statement_monthly=metrics_outputs.get("income_statement_monthly"),
+                cashflow_monthly=metrics_outputs.get("cashflow_monthly"),
+                invoices=data.get("invoices"),
+                as_of_date=metrics_outputs.get("filters", {}).get("as_of_date"),
+            )
+            st.session_state.insights_cache_key = cache_key
+    return st.session_state.get("insights_list", [])
 
 
 def _render_chat_interface(metrics_outputs: Dict, insights_list: List[Dict]):
@@ -171,12 +184,15 @@ def _handle_user_query(query: str, metrics_outputs: Dict, insights_list: List[Di
         llm_output = rewrite_answer(chat_summary)
         
         # Apply guardrails
-        final_text, was_blocked, block_reason = apply_guardrails(
+        guarded = generate_guarded_rewrite(
             llm_output,
             deterministic_answer["final_answer"],
             deterministic_answer["facts_used"],
-            strict=True
+            strict=True,
         )
+        final_text = guarded["final_output"]
+        was_blocked = guarded["was_blocked"]
+        block_reason = guarded["block_reason"]
         
         # Store block info in metadata
         if was_blocked:
@@ -284,8 +300,14 @@ def _render_browse_mode(insights_list: List[Dict], metrics_outputs: Dict, starti
                     summary = build_insights_summary(insights_list, key_metrics)
                     
                     with st.spinner("Generating explanation..."):
-                        explanation = generate_insights_explanation(summary)
-                        st.session_state["insights_explanation_all"] = explanation
+                        llm_text = generate_insights_explanation(summary)
+                        guarded = apply_guardrails(
+                            llm_text,
+                            generate_fallback_explanation(summary),
+                            _summary_facts(summary),
+                            strict=True,
+                        )
+                        st.session_state["insights_explanation_all"] = guarded[0]
                 
                 if "insights_explanation_all" in st.session_state:
                     st.divider()
@@ -326,9 +348,14 @@ def _render_narrative_generator(insights_list: List[Dict], metrics_outputs: Dict
                 
                 if check_transformers_available():
                     with st.spinner("Generating narrative..."):
-                        narrative = generate_narrative(summary, format="slack")
+                        llm_text = generate_narrative(summary, format="slack")
+                        narrative = apply_guardrails(
+                            llm_text,
+                            _generate_fallback_narrative(summary, format="slack"),
+                            _summary_facts(summary),
+                            strict=True,
+                        )[0]
                 else:
-                    from ..ai.local_llm import _generate_fallback_narrative
                     narrative = _generate_fallback_narrative(summary, format="slack")
                 
                 st.session_state["generated_narrative"] = narrative
@@ -341,9 +368,14 @@ def _render_narrative_generator(insights_list: List[Dict], metrics_outputs: Dict
                 
                 if check_transformers_available():
                     with st.spinner("Generating narrative..."):
-                        narrative = generate_narrative(summary, format="email")
+                        llm_text = generate_narrative(summary, format="email")
+                        narrative = apply_guardrails(
+                            llm_text,
+                            _generate_fallback_narrative(summary, format="email"),
+                            _summary_facts(summary),
+                            strict=True,
+                        )[0]
                 else:
-                    from ..ai.local_llm import _generate_fallback_narrative
                     narrative = _generate_fallback_narrative(summary, format="email")
                 
                 st.session_state["generated_narrative"] = narrative
@@ -356,9 +388,14 @@ def _render_narrative_generator(insights_list: List[Dict], metrics_outputs: Dict
                 
                 if check_transformers_available():
                     with st.spinner("Generating narrative..."):
-                        narrative = generate_narrative(summary, format="investor")
+                        llm_text = generate_narrative(summary, format="investor")
+                        narrative = apply_guardrails(
+                            llm_text,
+                            _generate_fallback_narrative(summary, format="investor"),
+                            _summary_facts(summary),
+                            strict=True,
+                        )[0]
                 else:
-                    from ..ai.local_llm import _generate_fallback_narrative
                     narrative = _generate_fallback_narrative(summary, format="investor")
                 
                 st.session_state["generated_narrative"] = narrative
@@ -404,3 +441,20 @@ def _extract_key_metrics(metrics_outputs: Dict, starting_cash: float) -> Dict:
         "gross_profit_total": income_df["gross_profit"].sum() if len(income_df) > 0 else 0,
         "operating_expenses_total": income_df["operating_expenses"].sum() if len(income_df) > 0 else 0
     }
+
+
+def _summary_facts(summary: Dict) -> List[str]:
+    """Flatten summary metrics into a fact list for guardrails."""
+    facts: List[str] = []
+    key_metrics = summary.get("key_metrics", {})
+    for key, value in key_metrics.items():
+        if isinstance(value, (int, float)):
+            if "runway" in key:
+                facts.append(f"{key}: {value:.1f} months")
+            else:
+                facts.append(f"{key}: EUR {value:,.0f}")
+
+    for severity, items in summary.get("insights_by_severity", {}).items():
+        for item in items:
+            facts.append(item.get("message", ""))
+    return facts

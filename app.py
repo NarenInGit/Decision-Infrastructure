@@ -13,8 +13,9 @@ import sys
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from src.data_loader import load_and_validate_data, get_data_summary
+from src.data_loader import load_and_validate_data, get_data_quality_overview, get_data_summary
 from src.metrics import (
+    compute_metrics_bundle,
     compute_project_metrics,
     compute_employee_utilization,
     compute_income_statement,
@@ -57,6 +58,88 @@ def load_data():
     st.session_state.validation_results = validation_results
 
 
+def _get_data_date_bounds(data: dict):
+    """Find the earliest and latest meaningful dates in the loaded data."""
+    candidates = []
+    for table_name, column_name in [
+        ("time_entries", "date"),
+        ("invoices", "invoice_date"),
+        ("invoices", "payment_date"),
+        ("expenses", "date"),
+    ]:
+        df = data.get(table_name)
+        if df is not None and column_name in df.columns and df[column_name].notna().any():
+            candidates.append(pd.to_datetime(df[column_name]).min())
+            candidates.append(pd.to_datetime(df[column_name]).max())
+
+    if not candidates:
+        return None, None
+    return min(candidates), max(candidates)
+
+
+def _build_metrics_outputs(data: dict, start_date_ts=None, end_date_ts=None):
+    """Compute the canonical metrics bundle for the current view."""
+    return compute_metrics_bundle(
+        data,
+        st.session_state.starting_cash,
+        as_of_date=end_date_ts,
+        date_window={"start_date": start_date_ts, "end_date": end_date_ts},
+    )
+
+
+def _render_data_quality_banner(data: dict, validation_results: dict, metrics_outputs: dict | None = None):
+    """Render a compact, explicit trust banner above computed outputs."""
+    if not data or not validation_results:
+        return
+
+    as_of_date = None
+    if metrics_outputs is not None:
+        as_of_date = metrics_outputs.get("filters", {}).get("as_of_date")
+
+    overview = get_data_quality_overview(data, validation_results, as_of_date=as_of_date)
+    status = overview["status"]
+
+    if status == "blocked":
+        st.error(overview["message"])
+    elif status == "caution":
+        st.warning(overview["message"])
+    else:
+        st.success(overview["message"])
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Blocking Errors", overview["blocking_error_count"])
+    with col2:
+        st.metric("Warnings", overview["warning_count"])
+    with col3:
+        as_of_display = overview["as_of_date"].date().isoformat() if overview["as_of_date"] is not None else "N/A"
+        st.metric("As-of Date", as_of_display)
+    with col4:
+        if overview["coverage_start"] is not None and overview["coverage_end"] is not None:
+            coverage_display = (
+                f"{pd.to_datetime(overview['coverage_start']).date()} -> "
+                f"{pd.to_datetime(overview['coverage_end']).date()}"
+            )
+        else:
+            coverage_display = "N/A"
+        st.metric("Coverage", coverage_display)
+
+    with st.expander("Dataset Coverage & Freshness", expanded=False):
+        coverage_rows = []
+        for dataset in overview["datasets"]:
+            coverage_rows.append(
+                {
+                    "Dataset": dataset["dataset"],
+                    "Rows": dataset["row_count"],
+                    "Coverage Start": dataset["coverage_start"].date().isoformat() if dataset["coverage_start"] is not None else "N/A",
+                    "Coverage End": dataset["coverage_end"].date().isoformat() if dataset["coverage_end"] is not None else "N/A",
+                    "Freshness vs As-of (days)": dataset["freshness_days"] if dataset["freshness_days"] is not None else "N/A",
+                }
+            )
+        st.dataframe(pd.DataFrame(coverage_rows), use_container_width=True, hide_index=True)
+        st.caption("Deterministic outputs are only as trustworthy as the loaded CSV coverage and validation status.")
+
+
 # Load data on first run
 if st.session_state.data is None:
     load_data()
@@ -72,20 +155,8 @@ def page_overview():
     
     data = st.session_state.data
     
-    # Date range selector
-    time_entries = data["time_entries"]
-    invoices = data["invoices"]
-    
-    if len(time_entries) > 0 and len(invoices) > 0:
-        min_date = min(
-            pd.to_datetime(time_entries["date"]).min(),
-            pd.to_datetime(invoices["invoice_date"]).min()
-        )
-        max_date = max(
-            pd.to_datetime(time_entries["date"]).max(),
-            pd.to_datetime(invoices["invoice_date"]).max()
-        )
-        
+    min_date, max_date = _get_data_date_bounds(data)
+    if min_date is not None and max_date is not None:
         col1, col2 = st.columns(2)
         with col1:
             start_date = st.date_input("Start Date", value=min_date.date())
@@ -97,24 +168,12 @@ def page_overview():
     else:
         start_date_ts = None
         end_date_ts = None
-    
-    # Starting cash input
-    st.session_state.starting_cash = st.sidebar.number_input(
-        "Starting Cash (EUR)",
-        min_value=0.0,
-        value=st.session_state.starting_cash,
-        step=1000.0
-    )
-    
-    # Compute metrics
-    income_stmt = compute_income_statement(
-        invoices, time_entries, data["expenses"], start_date_ts, end_date_ts
-    )
-    cashflow_stmt = compute_cashflow_statement(
-        invoices, data["expenses"], data["employees"],
-        st.session_state.starting_cash, start_date_ts, end_date_ts
-    )
-    project_metrics = compute_project_metrics(time_entries, invoices, data["expenses"])
+
+    metrics_outputs = _build_metrics_outputs(data, start_date_ts, end_date_ts)
+    _render_data_quality_banner(data, st.session_state.validation_results, metrics_outputs)
+    income_stmt = metrics_outputs["income_statement_monthly"]
+    cashflow_stmt = metrics_outputs["cashflow_monthly"]
+    project_metrics = metrics_outputs["projects_metrics"]
     
     # KPI Cards
     st.subheader("Key Metrics")
@@ -210,12 +269,9 @@ def page_projects():
         return
     
     data = st.session_state.data
-    time_entries = data["time_entries"]
-    invoices = data["invoices"]
-    expenses = data["expenses"]
-    
-    # Compute overall project metrics
-    projects_metrics = compute_project_metrics(time_entries, invoices, expenses, by_month=False)
+    metrics_outputs = _build_metrics_outputs(data)
+    _render_data_quality_banner(data, st.session_state.validation_results, metrics_outputs)
+    projects_metrics = metrics_outputs["projects_metrics"]
     
     # Render the refactored projects page
     render_projects_page(data, projects_metrics)
@@ -232,9 +288,9 @@ def page_people():
     data = st.session_state.data
     employees = data["employees"]
     time_entries = data["time_entries"]
-    
-    # Compute utilization
-    emp_utilization = compute_employee_utilization(time_entries, employees)
+    metrics_outputs = _build_metrics_outputs(data)
+    _render_data_quality_banner(data, st.session_state.validation_results, metrics_outputs)
+    emp_utilization = metrics_outputs["employee_utilization"]
     
     # Merge with employee details
     emp_display = employees.merge(emp_utilization, on="employee_id", how="left")
@@ -355,17 +411,8 @@ def page_financial_statements():
     expenses = data["expenses"]
     employees = data["employees"]
     
-    # Date range
-    if len(time_entries) > 0 and len(invoices) > 0:
-        min_date = min(
-            pd.to_datetime(time_entries["date"]).min(),
-            pd.to_datetime(invoices["invoice_date"]).min()
-        )
-        max_date = max(
-            pd.to_datetime(time_entries["date"]).max(),
-            pd.to_datetime(invoices["invoice_date"]).max()
-        )
-        
+    min_date, max_date = _get_data_date_bounds(data)
+    if min_date is not None and max_date is not None:
         col1, col2 = st.columns(2)
         with col1:
             start_date = st.date_input("Start Date", value=min_date.date(), key="fs_start")
@@ -380,10 +427,12 @@ def page_financial_statements():
     
     # Tabs
     tab1, tab2 = st.tabs(["Income Statement", "Cashflow Statement"])
+    metrics_outputs = _build_metrics_outputs(data, start_date_ts, end_date_ts)
+    _render_data_quality_banner(data, st.session_state.validation_results, metrics_outputs)
     
     with tab1:
         st.subheader("Income Statement (Accrual Basis)")
-        income_stmt = compute_income_statement(invoices, time_entries, expenses, start_date_ts, end_date_ts)
+        income_stmt = metrics_outputs["income_statement_monthly"]
         
         st.dataframe(
             income_stmt.style.format({
@@ -411,10 +460,7 @@ def page_financial_statements():
     
     with tab2:
         st.subheader("Cashflow Statement (Cash Basis)")
-        cashflow_stmt = compute_cashflow_statement(
-            invoices, expenses, employees,
-            st.session_state.starting_cash, start_date_ts, end_date_ts
-        )
+        cashflow_stmt = metrics_outputs["cashflow_monthly"]
         
         st.dataframe(
             cashflow_stmt.style.format({
@@ -448,12 +494,15 @@ def page_data_quality():
     if validation_results is None:
         st.warning("No validation results available.")
         return
-    
-    # Errors and Warnings
+
+    overview = get_data_quality_overview(data or {}, validation_results)
+    _render_data_quality_banner(data or {}, validation_results)
+
+    st.subheader("Validation Status")
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("Errors")
+        st.subheader("Blocking Errors")
         errors = validation_results.get("errors", [])
         if errors:
             st.error(f"**{len(errors)} error(s) found:**")
@@ -472,6 +521,17 @@ def page_data_quality():
         else:
             st.info("ℹ️ No warnings.")
     
+    st.subheader("Coverage Summary")
+    st.write(
+        f"As-of date: **{overview['as_of_date'].date().isoformat() if overview['as_of_date'] is not None else 'N/A'}**"
+    )
+    if overview["coverage_start"] is not None and overview["coverage_end"] is not None:
+        st.write(
+            "Overall coverage: "
+            f"**{pd.to_datetime(overview['coverage_start']).date().isoformat()} -> "
+            f"{pd.to_datetime(overview['coverage_end']).date().isoformat()}**"
+        )
+
     # Data Summary
     if data:
         st.subheader("Data Summary")
@@ -498,53 +558,10 @@ def page_briefs():
         return
     
     data = st.session_state.data
-    time_entries = data["time_entries"]
-    invoices = data["invoices"]
-    expenses = data["expenses"]
-    employees = data["employees"]
     
-    # Compute metrics outputs
     try:
-        # Get date range
-        if len(time_entries) > 0 and len(invoices) > 0:
-            min_date = min(
-                pd.to_datetime(time_entries["date"]).min(),
-                pd.to_datetime(invoices["invoice_date"]).min()
-            )
-            max_date = max(
-                pd.to_datetime(time_entries["date"]).max(),
-                pd.to_datetime(invoices["invoice_date"]).max()
-            )
-            start_date_ts = min_date
-            end_date_ts = max_date
-        else:
-            start_date_ts = None
-            end_date_ts = None
-        
-        # Compute all metrics
-        income_statement_monthly = compute_income_statement(
-            invoices, time_entries, expenses, start_date_ts, end_date_ts
-        )
-        cashflow_monthly = compute_cashflow_statement(
-            invoices, expenses, employees,
-            st.session_state.starting_cash, start_date_ts, end_date_ts
-        )
-        projects_metrics = compute_project_metrics(time_entries, invoices, expenses, by_month=False)
-        projects_metrics_monthly = compute_project_metrics(time_entries, invoices, expenses, by_month=True)
-        employee_utilization = compute_employee_utilization(time_entries, employees, by_month=False)
-        runway_months = compute_runway(cashflow_monthly, st.session_state.starting_cash)
-        
-        # Prepare metrics outputs
-        metrics_outputs = {
-            "projects_metrics": projects_metrics,
-            "projects_metrics_monthly": projects_metrics_monthly,
-            "employee_utilization": employee_utilization,
-            "income_statement_monthly": income_statement_monthly,
-            "cashflow_monthly": cashflow_monthly,
-            "runway_months": runway_months
-        }
-        
-        # Render briefs tab
+        metrics_outputs = _build_metrics_outputs(data)
+        _render_data_quality_banner(data, st.session_state.validation_results, metrics_outputs)
         render_briefs_tab(metrics_outputs, data, st.session_state.starting_cash)
         
     except Exception as e:
@@ -559,53 +576,9 @@ def page_insights():
         return
     
     data = st.session_state.data
-    time_entries = data["time_entries"]
-    invoices = data["invoices"]
-    expenses = data["expenses"]
-    employees = data["employees"]
-    
-    # Compute metrics outputs
     try:
-        # Get date range
-        if len(time_entries) > 0 and len(invoices) > 0:
-            min_date = min(
-                pd.to_datetime(time_entries["date"]).min(),
-                pd.to_datetime(invoices["invoice_date"]).min()
-            )
-            max_date = max(
-                pd.to_datetime(time_entries["date"]).max(),
-                pd.to_datetime(invoices["invoice_date"]).max()
-            )
-            start_date_ts = min_date
-            end_date_ts = max_date
-        else:
-            start_date_ts = None
-            end_date_ts = None
-        
-        # Compute all metrics
-        income_statement_monthly = compute_income_statement(
-            invoices, time_entries, expenses, start_date_ts, end_date_ts
-        )
-        cashflow_monthly = compute_cashflow_statement(
-            invoices, expenses, employees,
-            st.session_state.starting_cash, start_date_ts, end_date_ts
-        )
-        projects_metrics = compute_project_metrics(time_entries, invoices, expenses, by_month=False)
-        projects_metrics_monthly = compute_project_metrics(time_entries, invoices, expenses, by_month=True)
-        employee_utilization = compute_employee_utilization(time_entries, employees, by_month=False)
-        runway_months = compute_runway(cashflow_monthly, st.session_state.starting_cash)
-        
-        # Prepare metrics outputs
-        metrics_outputs = {
-            "projects_metrics": projects_metrics,
-            "projects_metrics_monthly": projects_metrics_monthly,
-            "employee_utilization": employee_utilization,
-            "income_statement_monthly": income_statement_monthly,
-            "cashflow_monthly": cashflow_monthly,
-            "runway_months": runway_months
-        }
-        
-        # Render insights tab
+        metrics_outputs = _build_metrics_outputs(data)
+        _render_data_quality_banner(data, st.session_state.validation_results, metrics_outputs)
         render_insights_tab(metrics_outputs, data, st.session_state.starting_cash)
         
     except Exception as e:
@@ -618,6 +591,13 @@ def main():
     """Main app function."""
     # Sidebar navigation
     st.sidebar.title("Navigation")
+    st.sidebar.caption("Deterministic metrics are the source of truth. AI only explains computed facts.")
+    st.session_state.starting_cash = st.sidebar.number_input(
+        "Starting Cash (EUR)",
+        min_value=0.0,
+        value=st.session_state.starting_cash,
+        step=1000.0,
+    )
     
     # Demo mode: show only selected pages
     if DEMO_MODE:

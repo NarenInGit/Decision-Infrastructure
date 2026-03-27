@@ -4,6 +4,7 @@ Routes queries to deterministic answer builders with compact context.
 """
 
 from typing import Dict, List
+from ..ai.guardrails import sanitize_context
 from .insights_chat import parse_intent, retrieve_context, build_deterministic_answer
 from .context_builder import build_context
 
@@ -80,5 +81,5 @@ def get_context_summary(
     
     return {
         "intent": intent,
-        "context": context
+        "context": sanitize_context(context)
     }

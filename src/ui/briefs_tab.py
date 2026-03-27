@@ -26,8 +26,8 @@ def render_briefs_tab(
     st.title("📋 Weekly Brief")
     st.caption("Focus on what matters most - ranked by severity and impact")
     
-    # Generate insights if not cached
-    if "insights_list" not in st.session_state:
+    cache_key = metrics_outputs.get("cache_key", "default")
+    if st.session_state.get("insights_cache_key") != cache_key:
         with st.spinner("Analyzing financial data..."):
             st.session_state.insights_list = generate_insights(
                 projects_metrics=metrics_outputs.get("projects_metrics"),
@@ -35,8 +35,10 @@ def render_briefs_tab(
                 employee_utilization=metrics_outputs.get("employee_utilization"),
                 income_statement_monthly=metrics_outputs.get("income_statement_monthly"),
                 cashflow_monthly=metrics_outputs.get("cashflow_monthly"),
-                invoices=data.get("invoices")
+                invoices=data.get("invoices"),
+                as_of_date=metrics_outputs.get("filters", {}).get("as_of_date"),
             )
+            st.session_state.insights_cache_key = cache_key
     
     insights_list = st.session_state.insights_list
     

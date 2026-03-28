@@ -84,10 +84,34 @@ def test_load_and_validate_data_reads_valid_bundle(tmp_path: Path, base_data_fra
 
 def test_data_quality_overview_reports_status_and_freshness(base_data_frames):
     validation_results = {
-        "errors": ["projects: missing required value"],
-        "warnings": ["invoices: payment_date warning"],
+        "errors": ["invoices: project_id values not in projects: P404"],
+        "warnings": ["time_entries: hourly_cost_eur has 1 non-numeric value(s)"],
         "error_count": 1,
         "warning_count": 1,
+        "details": [
+            {
+                "level": "error",
+                "dataset": "invoices",
+                "field": "project_id",
+                "rule": "relationship",
+                "message": "invoices: project_id values not in projects: P404",
+                "count": 1,
+                "row_count": 1,
+                "affected_share": 1.0,
+                "importance": "critical",
+            },
+            {
+                "level": "warning",
+                "dataset": "time_entries",
+                "field": "hourly_cost_eur",
+                "rule": "non_numeric",
+                "message": "time_entries: hourly_cost_eur has 1 non-numeric value(s)",
+                "count": 1,
+                "row_count": 3,
+                "affected_share": 1 / 3,
+                "importance": "critical",
+            },
+        ],
     }
 
     overview = get_data_quality_overview(
@@ -98,15 +122,25 @@ def test_data_quality_overview_reports_status_and_freshness(base_data_frames):
 
     assert overview["status"] == "blocked"
     assert overview["trust_label"] == "Lower Trust"
-    assert overview["trust_score"] == 47
-    assert "blocking validation errors" in overview["message"].lower()
+    assert overview["uncapped_trust_score"] == 90
+    assert overview["trust_score"] == 69
+    assert "blocking validation errors cap the final trust score" in overview["message"].lower()
     assert overview["blocking_error_count"] == 1
     assert overview["warning_count"] == 1
     assert overview["as_of_date"] == pd.Timestamp("2026-03-15")
+    assert overview["dataset_scores"]["invoices"] == 76
+    assert overview["dataset_scores"]["time_entries"] == 91
+    assert "weighted average of dataset trust" in overview["trust_explanation"].lower()
+    assert any("invoices" in factor for factor in overview["main_factors"])
+    assert overview["blocking_error_messages"] == ["invoices: project_id values not in projects: P404"]
+    assert overview["warning_messages"] == ["time_entries: hourly_cost_eur has 1 non-numeric value(s)"]
+    assert overview["cap_reason"] is not None
 
     invoices_row = next(row for row in overview["datasets"] if row["dataset"] == "invoices")
     assert invoices_row["coverage_end"] == pd.Timestamp("2026-03-15")
     assert invoices_row["freshness_days"] == 0
+    assert invoices_row["weight"] == 30
+    assert invoices_row["top_factor"] == "invoices: project_id values not in projects: P404"
 
 
 def test_data_quality_overview_scores_clean_data_as_full_trust(base_data_frames):
@@ -114,4 +148,9 @@ def test_data_quality_overview_scores_clean_data_as_full_trust(base_data_frames)
 
     assert overview["status"] == "ready"
     assert overview["trust_label"] == "Standard"
-    assert overview["trust_score"] == 88
+    assert overview["trust_score"] == 98
+    assert overview["dataset_scores"]["time_entries"] == 95
+    assert overview["dataset_scores"]["invoices"] == 100
+    assert overview["blocking_error_messages"] == []
+    assert overview["warning_messages"] == []
+    assert overview["cap_reason"] is None

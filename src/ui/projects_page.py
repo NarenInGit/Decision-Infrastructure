@@ -63,12 +63,15 @@ def render_projects_page(data: Dict, projects_metrics: pd.DataFrame):
 
 def _render_project_selector(project_vms: List[Dict]):
     """Render project dropdown selector with search."""
+    if st.session_state.get("_clear_project_dropdown_search"):
+        st.session_state.project_dropdown_search = ""
+        st.session_state._clear_project_dropdown_search = False
+
     col1, col2 = st.columns([3, 1])
     
     with col1:
         # Create dropdown options with status emoji and margin
-        dropdown_options = ["Select a project..."]
-        project_map = {}
+        dropdown_items = []
         
         for vm in project_vms:
             # Status emoji
@@ -86,33 +89,44 @@ def _render_project_selector(project_vms: List[Dict]):
             
             # Create label
             label = f"{status_emoji} {vm['name']} ({vm['client']}) | {margin_display}"
-            dropdown_options.append(label)
-            project_map[label] = vm["id"]
-        
-        # Find current selection index
-        current_index = 0
+            dropdown_items.append((label, vm["id"]))
+
+        selected_label = "Select a project..."
         if st.session_state.selected_project_id:
-            for idx, label in enumerate(dropdown_options[1:], 1):
-                if project_map[label] == st.session_state.selected_project_id:
-                    current_index = idx
+            for label, project_id in dropdown_items:
+                if project_id == st.session_state.selected_project_id:
+                    selected_label = label
                     break
-        
-        # Dropdown selector
-        selected_option = st.selectbox(
-            "Select Project",
-            dropdown_options,
-            index=current_index,
-            key="project_dropdown"
-        )
-        
-        # Update selected project
-        if selected_option != "Select a project...":
-            selected_id = project_map[selected_option]
-            if st.session_state.selected_project_id != selected_id:
-                st.session_state.selected_project_id = selected_id
-                st.rerun()
-        else:
-            st.session_state.selected_project_id = None
+
+        with st.expander(selected_label, expanded=False):
+            search_query = st.text_input(
+                "Search projects",
+                placeholder="Search projects...",
+                key="project_dropdown_search",
+                label_visibility="collapsed",
+            )
+
+            normalized_query = search_query.strip().lower()
+            filtered_items = [
+                (label, project_id)
+                for label, project_id in dropdown_items
+                if not normalized_query or normalized_query in label.lower()
+            ]
+
+            if st.session_state.selected_project_id is not None:
+                if st.button("Clear selection", key="project_dropdown_clear", use_container_width=True):
+                    st.session_state.selected_project_id = None
+                    st.session_state._clear_project_dropdown_search = True
+                    st.rerun()
+
+            if not filtered_items:
+                st.caption("No projects match your search.")
+            else:
+                for label, project_id in filtered_items:
+                    if st.button(label, key=f"project_option_{project_id}", use_container_width=True):
+                        st.session_state.selected_project_id = project_id
+                        st.session_state._clear_project_dropdown_search = True
+                        st.rerun()
     
     with col2:
         # Quick stats
@@ -127,7 +141,7 @@ def _render_project_selector(project_vms: List[Dict]):
 
 def _render_empty_state():
     """Render empty state when no project is selected."""
-    st.info("☝️ Select a project from the dropdown above to see its profitability verdict.")
+    st.info("Select a project from the dropdown above to see its profitability verdict.")
     
     st.markdown("""
     ### What you'll see:

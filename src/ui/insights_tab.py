@@ -153,10 +153,21 @@ def _render_chat_interface(metrics_outputs: Dict, insights_list: List[Dict]):
                         _handle_user_query(followup, metrics_outputs, insights_list)
                         st.rerun()
     
-    # Chat input
-    user_input = st.chat_input("Ask a question about your data...")
-    if user_input:
-        _handle_user_query(user_input, metrics_outputs, insights_list)
+    # Use a regular form composer instead of st.chat_input so expanders above
+    # do not trigger Streamlit's page-bottom chat anchoring behavior.
+    with st.form("insights_query_form", clear_on_submit=True):
+        input_col, submit_col = st.columns([6, 1])
+        with input_col:
+            user_input = st.text_input(
+                "Ask a question about your data...",
+                placeholder="Ask a question about your data...",
+                label_visibility="collapsed",
+                key="insights_query_input",
+            )
+        with submit_col:
+            submitted = st.form_submit_button("Send", use_container_width=True)
+    if submitted and user_input.strip():
+        _handle_user_query(user_input.strip(), metrics_outputs, insights_list)
         st.rerun()
 
 
@@ -215,7 +226,7 @@ def _handle_user_query(query: str, metrics_outputs: Dict, insights_list: List[Di
 
 def _render_browse_mode(insights_list: List[Dict], metrics_outputs: Dict, starting_cash: float):
     """Render optional browse mode (collapsed by default)."""
-    with st.expander("📋 Browse Insights (optional)", expanded=False):
+    with st.expander("Browse Insights (optional)", expanded=False):
         if not insights_list:
             st.info("No insights found. Your metrics look good!")
             return
@@ -254,11 +265,13 @@ def _render_browse_mode(insights_list: List[Dict], metrics_outputs: Dict, starti
             with st.container():
                 st.markdown(f"**{severity_badge} {insight['message']}**")
                 st.caption(f"{insight['entity']} | {insight['type']}")
-                
                 with st.expander("Details", expanded=False):
-                    st.markdown("**Drivers:**")
-                    for driver in insight.get("drivers", []):
-                        st.markdown(f"- {driver}")
+                    if insight.get("drivers"):
+                        st.markdown("**Drivers:**")
+                        for driver in insight.get("drivers", []):
+                            st.markdown(f"- {driver}")
+                    else:
+                        st.caption("No drivers available for this insight.")
                 
                 st.divider()
         

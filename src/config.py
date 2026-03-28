@@ -210,3 +210,116 @@ INTERNAL_PROJECT_ID = "INTERNAL"
 DEFAULT_STARTING_CASH = 50000.0
 UNDERUTILIZED_THRESHOLD = 0.60
 OVERUTILIZED_THRESHOLD = 0.85
+
+# Trust-scoring model
+DATASET_TRUST_WEIGHTS = {
+    "invoices": 30,
+    "time_entries": 30,
+    "employees": 20,
+    "expenses": 15,
+    "projects": 5,
+}
+
+FIELD_IMPORTANCE = {
+    "projects": {
+        "project_id": "critical",
+        "billing_model": "important",
+        "start_date": "important",
+        "status": "important",
+        "currency": "important",
+        "client_name": "supporting",
+        "project_name": "supporting",
+    },
+    "employees": {
+        "employee_id": "critical",
+        "monthly_salary_eur": "critical",
+        "employment_type": "important",
+        "employer_cost_multiplier": "critical",
+        "weekly_capacity_hours": "critical",
+        "start_date": "important",
+        "job_title": "supporting",
+        "department": "supporting",
+    },
+    "time_entries": {
+        "date": "critical",
+        "employee_id": "critical",
+        "project_id": "critical",
+        "hours_logged": "critical",
+        "activity_type": "important",
+        "hourly_cost_eur": "critical",
+        "task": "supporting",
+    },
+    "invoices": {
+        "invoice_id": "critical",
+        "project_id": "critical",
+        "invoice_date": "critical",
+        "amount_eur": "critical",
+        "status": "critical",
+        "payment_date": "important",
+        "due_date": "important",
+        "client_name": "supporting",
+    },
+    "expenses": {
+        "expense_id": "critical",
+        "date": "critical",
+        "amount_eur": "critical",
+        "allocated_project_id": "critical",
+        "fixed_or_variable": "important",
+        "category": "supporting",
+        "vendor": "supporting",
+    },
+}
+
+TRUST_IMPORTANCE_WEIGHTS = {
+    "critical": 3.0,
+    "important": 2.0,
+    "supporting": 1.0,
+}
+
+TRUST_VALIDATION_BASE_PENALTIES = {
+    "error": 12.0,
+    "warning": 4.0,
+}
+
+TRUST_RULE_MULTIPLIERS = {
+    "missing_file": 2.0,
+    "missing_column": 1.5,
+    "missing_required": 1.0,
+    "duplicate_key": 2.0,
+    "relationship": 2.0,
+    "date_order": 1.25,
+    "invalid_enum": 1.25,
+    "negative_value": 1.25,
+    "non_numeric": 1.0,
+    "unparseable_date": 1.0,
+    "type_conversion_error": 1.0,
+    "consistency_warning": 0.75,
+}
+
+TRUST_FRESHNESS_RULES = {
+    "projects": {
+        "date_fields": [],
+        "target_days": 90,
+        "max_penalty": 0,
+    },
+    "employees": {
+        "date_fields": ["start_date"],
+        "target_days": 45,
+        "max_penalty": 5,
+    },
+    "time_entries": {
+        "date_fields": ["date"],
+        "target_days": 7,
+        "max_penalty": 20,
+    },
+    "invoices": {
+        "date_fields": ["payment_date", "invoice_date"],
+        "target_days": 14,
+        "max_penalty": 20,
+    },
+    "expenses": {
+        "date_fields": ["date"],
+        "target_days": 21,
+        "max_penalty": 15,
+    },
+}

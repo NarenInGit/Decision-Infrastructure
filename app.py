@@ -4,6 +4,7 @@ Main entry point for the B2B service prototype.
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -104,6 +105,7 @@ def _inject_app_theme():
             --surface: rgba(17, 22, 30, 0.9);
             --surface-elevated: rgba(20, 26, 35, 0.94);
             --surface-strong: rgba(11, 15, 22, 0.98);
+            --card-surface: rgba(255, 255, 255, 0.028);
             --border: rgba(255, 255, 255, 0.08);
             --border-strong: rgba(255, 255, 255, 0.14);
             --text: #ffffff;
@@ -125,8 +127,13 @@ def _inject_app_theme():
             --radius-sm: 14px;
             --control-radius: 14px;
             --control-height: 48px;
+            --dropdown-inline-padding: 0.95rem;
+            --dropdown-icon-gap: 0.9rem;
+            --dropdown-arrow-size: 1rem;
+            --dropdown-text-offset: calc(var(--dropdown-inline-padding) + var(--dropdown-arrow-size) + var(--dropdown-icon-gap));
             --accordion-duration: 500ms;
             --accordion-ease: cubic-bezier(0.4, 0, 0.2, 1);
+            --shell-ease: cubic-bezier(0.22, 1, 0.36, 1);
             --sidebar-control-height: 50px;
             --space-content: 1.1rem;
             --space-section: 1.6rem;
@@ -155,30 +162,117 @@ def _inject_app_theme():
         [data-testid="stAppViewContainer"] .main [data-testid="stVerticalBlock"] { gap: 1rem; }
         [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.75rem; }
         [data-testid="stHeader"] {
-            background: rgba(8, 10, 14, 0.9);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-            z-index: 20;
+            background: linear-gradient(180deg, rgba(8, 11, 17, 0.96), rgba(8, 11, 17, 0.88)) !important;
+            backdrop-filter: blur(14px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+            height: 3.35rem !important;
+            min-height: 3.35rem !important;
+            z-index: 1000 !important;
         }
         [data-testid="stToolbar"] {
-            top: 0.85rem;
-            right: 0.8rem;
-            background: rgba(14, 18, 24, 0.88);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 0.1rem 0.2rem;
-            z-index: 30;
+            position: fixed !important;
+            right: 0.8rem !important;
+            top: 0.58rem !important;
+            z-index: 1002 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+            background: transparent !important;
+        }
+        [data-testid="stToolbar"] button,
+        [data-testid="stToolbar"] [role="button"] {
+            border-radius: 14px !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            background: linear-gradient(180deg, rgba(28, 33, 42, 0.96), rgba(18, 22, 28, 0.96)) !important;
+            color: var(--text) !important;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2) !important;
+            transition: all 0.32s ease !important;
+        }
+        [data-testid="stToolbar"] button:hover,
+        [data-testid="stToolbar"] [role="button"]:hover {
+            transform: scale(1.03);
+            border-color: rgba(255, 255, 255, 0.14) !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            box-shadow: 12px 17px 42px rgba(0, 0, 0, 0.22), 0 0 20px rgba(255, 255, 255, 0.05) !important;
+        }
+        [data-testid="stToolbar"] button:active,
+        [data-testid="stToolbar"] [role="button"]:active {
+            transform: scale(0.95) rotateZ(1.7deg);
         }
         [data-testid="collapsedControl"] {
-            background: rgba(17, 21, 28, 0.72);
-            border-radius: 999px;
-            border: 1px solid var(--border);
+            position: fixed !important;
+            left: 0.8rem !important;
+            top: 0.58rem !important;
+            z-index: 1002 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        [data-testid="collapsedControl"] button {
+            width: 42px !important;
+            height: 42px !important;
+            min-width: 42px !important;
+            min-height: 42px !important;
+            padding: 0 !important;
+            border-radius: 14px !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            background: linear-gradient(180deg, rgba(28, 33, 42, 0.96), rgba(18, 22, 28, 0.96)) !important;
+            color: var(--text) !important;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2) !important;
+            transition: all 0.32s ease !important;
+        }
+        [data-testid="collapsedControl"] button:hover {
+            transform: scale(1.03);
+            border-color: rgba(255, 255, 255, 0.14) !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            box-shadow: 12px 17px 42px rgba(0, 0, 0, 0.22), 0 0 20px rgba(255, 255, 255, 0.05) !important;
+        }
+        [data-testid="collapsedControl"] button:active {
+            transform: scale(0.95) rotateZ(1.7deg);
+        }
+        [data-testid="collapsedControl"] svg {
+            width: 1rem !important;
+            height: 1rem !important;
+        }
+        [data-testid="stSidebar"] { display: block !important; }
+        .di-shell-toggle-label {
+            position: relative;
+            top: 0;
+            left: 0;
+        }
+        .di-shell-toggle-note {
+            color: rgba(255, 255, 255, 0.62);
+            font-size: 0.72rem;
+            line-height: 1.2;
+            margin-top: 0.35rem;
+        }
+        .di-custom-sidebar,
+        .di-sidebar-rail {
+            position: sticky;
+            top: 1rem;
+        }
+        .di-custom-sidebar {
+            padding-right: 0.35rem;
+        }
+        .di-custom-sidebar .di-sidebar-brand,
+        .di-custom-sidebar .di-sidebar-trust {
+            margin-left: 0;
+            margin-right: 0;
+        }
+        .di-sidebar-toggle-wrap {
+            margin-bottom: 0.75rem;
         }
         [data-testid="stSidebar"] {
-            background:
-                linear-gradient(180deg, rgba(11, 15, 21, 0.985) 0%, rgba(8, 11, 17, 0.995) 100%);
+            background: var(--card-surface);
             border-right: 1px solid var(--border);
             min-width: 305px !important;
             max-width: 305px !important;
+            box-shadow: 26px 0 60px rgba(0, 0, 0, 0.24);
+            backdrop-filter: blur(22px);
+            transition:
+                transform 380ms var(--shell-ease),
+                opacity 260ms ease,
+                box-shadow 280ms var(--shell-ease);
         }
         [data-testid="stSidebar"] * { color: var(--text); }
         [data-testid="stSidebar"] .block-container {
@@ -186,7 +280,7 @@ def _inject_app_theme():
             padding-bottom: 1.45rem;
         }
         .block-container {
-            padding-top: 2.35rem;
+            padding-top: 4rem;
             padding-bottom: 3rem;
             padding-left: 1rem;
             padding-right: 1rem;
@@ -218,9 +312,7 @@ def _inject_app_theme():
             padding: 1.15rem 1rem 1rem 1rem;
             border-radius: var(--radius-md);
             border: 1px solid var(--border);
-            background:
-                linear-gradient(180deg, rgba(18, 24, 32, 0.98), rgba(12, 17, 24, 0.97)),
-                radial-gradient(circle at top left, rgba(255, 255, 255, 0.04), transparent 40%);
+            background: var(--card-surface);
             box-shadow: var(--shadow-soft);
         }
         .di-sidebar-eyebrow {
@@ -272,7 +364,7 @@ def _inject_app_theme():
             padding: 0 0.92rem;
             border-radius: 16px;
             border: 1px solid rgba(255, 255, 255, 0.08);
-            background: linear-gradient(180deg, rgba(21, 25, 32, 0.96), rgba(15, 19, 25, 0.94));
+            background: var(--card-surface);
             box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
             display: flex;
             align-items: center;
@@ -318,6 +410,9 @@ def _inject_app_theme():
             background: rgba(255, 255, 255, 0.04) !important;
             border-radius: 10px !important;
         }
+        [data-testid="stSidebar"] .stNumberInput [data-testid="InputInstructions"] {
+            display: none !important;
+        }
         [data-testid="stSidebar"] .stButton > button {
             width: 100%;
             min-height: var(--sidebar-control-height);
@@ -325,7 +420,7 @@ def _inject_app_theme():
             padding: 0 0.92rem;
             border-radius: 16px;
             border: 1px solid rgba(255, 255, 255, 0.07) !important;
-            background: rgba(255, 255, 255, 0.015) !important;
+            background: var(--card-surface) !important;
             color: var(--text) !important;
             box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14) !important;
             font-weight: 500;
@@ -341,11 +436,22 @@ def _inject_app_theme():
             box-shadow: 12px 17px 42px rgba(0, 0, 0, 0.22), 0 0 20px rgba(255, 255, 255, 0.05) !important;
         }
         [data-testid="stSidebar"] .stButton > button[kind="primary"] {
-            background:
-                linear-gradient(180deg, rgba(34, 39, 48, 0.96), rgba(22, 26, 33, 0.96)) !important;
-            border-color: rgba(255, 255, 255, 0.1) !important;
+            background: var(--card-surface) !important;
+            border-color: rgba(255, 255, 255, 0.18) !important;
             color: var(--text) !important;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 22px rgba(0, 0, 0, 0.24), 0 0 20px rgba(255, 255, 255, 0.045) !important;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.05),
+                0 10px 22px rgba(0, 0, 0, 0.24),
+                0 0 28px rgba(255, 255, 255, 0.1),
+                0 0 12px rgba(255, 255, 255, 0.08) !important;
+        }
+        [data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
+            border-color: rgba(255, 255, 255, 0.22) !important;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.06),
+                0 12px 24px rgba(0, 0, 0, 0.24),
+                0 0 34px rgba(255, 255, 255, 0.13),
+                0 0 16px rgba(255, 255, 255, 0.09) !important;
         }
         [data-testid="stSidebar"] .stButton > button:active {
             transform: scale(0.95) rotateZ(1.7deg);
@@ -355,9 +461,7 @@ def _inject_app_theme():
             padding: 0.95rem;
             border-radius: var(--radius-sm);
             border: 1px solid var(--border);
-            background:
-                linear-gradient(180deg, rgba(20, 24, 31, 0.94), rgba(14, 18, 24, 0.94)),
-                radial-gradient(circle at top right, rgba(255, 255, 255, 0.035), transparent 35%);
+            background: var(--card-surface);
         }
         .di-sidebar-trust-top {
             display: flex;
@@ -388,11 +492,11 @@ def _inject_app_theme():
         .di-meter-fill {
             height: 100%;
             border-radius: 999px;
-            background: linear-gradient(90deg, rgba(205, 184, 150, 0.72), rgba(255, 255, 255, 0.7));
+            background: #f3b35f;
         }
-        .di-meter-fill.ready { background: linear-gradient(90deg, #7ab292, #cdb896); }
-        .di-meter-fill.caution { background: linear-gradient(90deg, #cfad72, #cdb896); }
-        .di-meter-fill.blocked { background: linear-gradient(90deg, #c67f7f, #cfad72); }
+        .di-meter-fill.ready,
+        .di-meter-fill.caution,
+        .di-meter-fill.blocked { background: #f3b35f; }
         .di-sidebar-trust-copy {
             margin-top: 0.55rem;
             color: rgba(255, 255, 255, 0.72);
@@ -400,38 +504,51 @@ def _inject_app_theme():
             line-height: 1.45;
         }
         .di-hero {
-            padding: 1.45rem 1.65rem 1.35rem 1.65rem;
+            padding: 0.15rem 0 0 0;
             margin-bottom: 0;
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            background:
-                linear-gradient(180deg, rgba(18, 24, 32, 0.96), rgba(11, 15, 22, 0.97)),
-                radial-gradient(circle at top left, rgba(255, 255, 255, 0.04), transparent 42%);
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(14px);
-        }
-        .di-kicker {
-            text-transform: uppercase;
-            letter-spacing: 0.18em;
-            font-size: 0.72rem;
-            color: rgba(255, 255, 255, 0.76);
-            margin-bottom: 0.75rem;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            backdrop-filter: none;
         }
         .di-title {
             font-family: var(--font-display);
-            font-size: clamp(2.1rem, 3.2vw, 3rem);
-            font-weight: 620;
-            line-height: 1.02;
+            font-size: clamp(4rem, 6.2vw, 6rem);
+            font-weight: 700;
+            line-height: 0.92;
             margin: 0;
             color: var(--text);
-            max-width: 54rem;
+            max-width: 72rem;
+            text-shadow: 0 0 22px rgba(255, 255, 255, 0.07);
+        }
+        .di-page-title {
+            font-size: clamp(3.35rem, 5.45vw, 4.8rem) !important;
+            font-weight: 520 !important;
+            line-height: 0.94 !important;
+            letter-spacing: -0.05em !important;
+            margin: 0 !important;
         }
         .di-subtitle {
-            margin-top: 0.7rem;
+            margin-top: 0.8rem;
             color: rgba(255, 255, 255, 0.82);
-            max-width: 64rem;
-            font-size: 0.98rem;
-            line-height: 1.58;
+            max-width: 58rem;
+            font-size: 0.88rem;
+            line-height: 1.55;
+        }
+        .di-hero-rule {
+            margin-top: 1.15rem;
+            width: 100%;
+            height: 1px;
+            background:
+                linear-gradient(
+                    90deg,
+                    rgba(255, 255, 255, 0),
+                    rgba(255, 255, 255, 0.26) 18%,
+                    rgba(255, 255, 255, 0.1) 62%,
+                    rgba(255, 255, 255, 0)
+                );
+            box-shadow: 0 0 18px rgba(255, 255, 255, 0.045);
         }
         .di-section-label {
             margin: var(--space-section) 0 0.6rem 0;
@@ -453,9 +570,7 @@ def _inject_app_theme():
             margin-bottom: 0;
             border-radius: var(--radius-md);
             border: 1px solid rgba(255, 255, 255, 0.09);
-            background:
-                linear-gradient(180deg, rgba(20, 24, 31, 0.96), rgba(14, 18, 24, 0.94)),
-                radial-gradient(circle at top left, rgba(255, 255, 255, 0.04), transparent 44%);
+            background: var(--card-surface);
             box-shadow: var(--shadow-soft);
             display: flex;
             flex-direction: column;
@@ -522,9 +637,7 @@ def _inject_app_theme():
             padding: 1.25rem;
             border-radius: var(--radius-lg);
             border: 1px solid rgba(255, 255, 255, 0.09);
-            background:
-                linear-gradient(180deg, rgba(20, 24, 31, 0.96), rgba(14, 18, 24, 0.95)),
-                radial-gradient(circle at top right, rgba(255, 255, 255, 0.04), transparent 38%);
+            background: var(--card-surface);
             box-shadow: var(--shadow);
             backdrop-filter: blur(12px);
         }
@@ -533,20 +646,6 @@ def _inject_app_theme():
             grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.9fr);
             gap: 1rem;
             align-items: start;
-        }
-        .di-trust-eyebrow {
-            color: var(--text);
-            text-transform: uppercase;
-            letter-spacing: 0.16em;
-            font-size: 0.7rem;
-            margin-bottom: 0.6rem;
-        }
-        .di-trust-title {
-            font-family: var(--font-display);
-            font-size: 1.15rem;
-            font-weight: 600;
-            color: var(--text);
-            margin-bottom: 0.55rem;
         }
         .di-trust-score-row {
             display: flex;
@@ -595,7 +694,7 @@ def _inject_app_theme():
             padding: 0.9rem 0.95rem;
             border-radius: 18px;
             border: 1px solid rgba(255, 255, 255, 0.08);
-            background: rgba(255, 255, 255, 0.028);
+            background: var(--card-surface);
             cursor: pointer;
             user-select: none;
             transition: all 0.32s ease;
@@ -628,13 +727,63 @@ def _inject_app_theme():
             line-height: 1.45;
             margin-top: 0.45rem;
         }
+        .di-stat-issues {
+            margin: 0.55rem 0 0 0;
+            padding-left: 1rem;
+            color: rgba(255, 255, 255, 0.84);
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }
+        .di-stat-issues li {
+            margin-bottom: 0.34rem;
+        }
+        .di-stat-issues li:last-child {
+            margin-bottom: 0;
+        }
+        .di-stat-empty {
+            margin-top: 0.55rem;
+            color: rgba(255, 255, 255, 0.58);
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }
+        .di-trust-meta {
+            margin-top: 0.9rem;
+            padding: 0.8rem 0.9rem;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: var(--card-surface);
+        }
+        .di-trust-meta-title {
+            color: var(--muted-strong);
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-size: 0.68rem;
+            margin-bottom: 0.45rem;
+        }
+        .di-trust-meta-copy {
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 0.84rem;
+            line-height: 1.5;
+        }
+        .di-trust-driver-list {
+            margin: 0.55rem 0 0 0;
+            padding-left: 1rem;
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 0.82rem;
+            line-height: 1.5;
+        }
+        .di-trust-driver-list li {
+            margin-bottom: 0.32rem;
+        }
+        .di-trust-driver-list li:last-child {
+            margin-bottom: 0;
+        }
         .di-surface {
             padding: 1.15rem 1.15rem 0.5rem 1.15rem;
             margin-bottom: 0;
             border-radius: var(--radius-lg);
             border: 1px solid rgba(255, 255, 255, 0.09);
-            background:
-                linear-gradient(180deg, rgba(20, 24, 31, 0.95), rgba(14, 18, 24, 0.93));
+            background: var(--card-surface);
             box-shadow: var(--shadow-soft);
             backdrop-filter: blur(10px);
         }
@@ -661,7 +810,7 @@ def _inject_app_theme():
             margin-bottom: 0;
             border-radius: 18px;
             border: 1px solid rgba(255, 255, 255, 0.09);
-            background: rgba(255, 255, 255, 0.028);
+            background: var(--card-surface);
             display: flex;
             flex-direction: column;
             cursor: pointer;
@@ -720,7 +869,7 @@ def _inject_app_theme():
         .di-table-shell {
             border-radius: 18px;
             border: 1px solid rgba(255, 255, 255, 0.09);
-            background: rgba(13, 17, 23, 0.82);
+            background: var(--card-surface);
             overflow: hidden;
             box-shadow: 0 10px 22px rgba(0, 0, 0, 0.16);
             transition: transform 220ms ease, border-color 220ms ease, box-shadow 260ms ease;
@@ -768,74 +917,118 @@ def _inject_app_theme():
         [data-testid="stExpander"] {
             border: 1px solid var(--border);
             border-radius: var(--control-radius);
-            background: rgba(14, 19, 27, 0.96);
+            background: var(--card-surface);
             overflow: hidden;
             box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
             cursor: pointer;
             user-select: none;
             transition: all var(--accordion-duration) var(--accordion-ease);
         }
-        [data-testid="stExpander"]:has(details[open]) {
+        [data-testid="stExpander"]:has(> details[open]) {
             border-radius: 18px;
         }
-        [data-testid="stExpander"] details {
+        [data-testid="stExpander"] > details {
             display: grid !important;
             grid-template-rows: minmax(var(--control-height), auto) 0fr;
             border: 0 !important;
             background: transparent !important;
             box-shadow: none !important;
             border-radius: inherit !important;
+            position: relative !important;
             transition: grid-template-rows var(--accordion-duration) var(--accordion-ease);
         }
-        [data-testid="stExpander"] details[open] {
+        [data-testid="stExpander"] > details::before {
+            content: "";
+            position: absolute;
+            left: var(--dropdown-inline-padding);
+            top: calc(var(--control-height) / 2);
+            width: var(--dropdown-arrow-size);
+            height: var(--dropdown-arrow-size);
+            transform: translateY(-50%) rotate(180deg);
+            transform-origin: center center;
+            background-color: rgba(255, 255, 255, 0.72);
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M6 12l4-4 4 4' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+            -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M6 12l4-4 4 4' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+            transition:
+                transform var(--accordion-duration) var(--accordion-ease),
+                background-color var(--accordion-duration) var(--accordion-ease);
+            pointer-events: none;
+            z-index: 2;
+        }
+        [data-testid="stExpander"] > details[open] {
             grid-template-rows: minmax(var(--control-height), auto) 1fr;
         }
-        [data-testid="stExpander"] details > div {
+        [data-testid="stExpander"] > details[open]::before {
+            transform: translateY(-50%) rotate(0deg);
+            background-color: var(--text);
+        }
+        [data-testid="stExpander"] > details.di-expander-closing::before {
+            transform: translateY(-50%) rotate(180deg);
+            background-color: rgba(255, 255, 255, 0.72);
+        }
+        [data-testid="stExpander"] > details[open] > summary {
+            border-bottom: 1px solid var(--border) !important;
+            border-bottom-left-radius: 0 !important;
+            border-bottom-right-radius: 0 !important;
+        }
+        [data-testid="stExpander"] > details > div {
             min-height: 0;
             overflow: hidden !important;
             opacity: 0;
             transform: translateY(0.4rem);
+            transform-origin: top center;
             transition:
                 opacity var(--accordion-duration) var(--accordion-ease),
                 transform var(--accordion-duration) var(--accordion-ease);
         }
-        [data-testid="stExpander"] details[open] > div {
+        [data-testid="stExpander"] > details[open] > div {
             opacity: 1;
             transform: translateY(0);
+            border-radius: 0 0 18px 18px;
+            overflow: visible !important;
         }
-        [data-testid="stExpander"] details > div > div {
+        [data-testid="stExpander"] > details > div > div {
             opacity: 0;
             transform: translateY(0.9rem);
             transition:
                 opacity var(--accordion-duration) var(--accordion-ease),
                 transform var(--accordion-duration) var(--accordion-ease);
         }
-        [data-testid="stExpander"] details[open] > div > div {
+        [data-testid="stExpander"] > details[open] > div > div {
             opacity: 1;
             transform: translateY(0);
             transition-delay: 75ms;
         }
-        [data-testid="stExpander"] summary {
+        [data-testid="stExpander"] > details > summary {
             border: 0 !important;
             background: transparent !important;
             box-shadow: none !important;
             min-height: var(--control-height);
-            padding: 0 0.95rem !important;
+            padding: 0 var(--dropdown-inline-padding) 0 var(--dropdown-text-offset) !important;
             display: flex !important;
             align-items: center !important;
-            gap: 0.9rem;
+            gap: 0 !important;
             border-radius: inherit !important;
+            position: relative !important;
             transition:
                 background var(--accordion-duration) var(--accordion-ease),
                 color var(--accordion-duration) var(--accordion-ease);
         }
-        [data-testid="stExpander"] summary::before,
-        [data-testid="stExpander"] summary::after {
+        [data-testid="stExpander"] > details > summary::marker,
+        [data-testid="stExpander"] > details > summary::-webkit-details-marker {
             display: none !important;
         }
-        [data-testid="stExpander"] summary p,
-        [data-testid="stExpander"] summary span,
-        [data-testid="stExpander"] summary div {
+        [data-testid="stExpander"] > details > summary::before {
+            display: none !important;
+            content: none !important;
+        }
+        [data-testid="stExpander"] > details > summary::after {
+            display: none !important;
+            content: none !important;
+        }
+        [data-testid="stExpander"] > details > summary p,
+        [data-testid="stExpander"] > details > summary span,
+        [data-testid="stExpander"] > details > summary div {
             color: var(--text) !important;
             line-height: 1.2 !important;
             transition:
@@ -843,18 +1036,168 @@ def _inject_app_theme():
                 opacity var(--accordion-duration) var(--accordion-ease),
                 transform var(--accordion-duration) var(--accordion-ease);
         }
-        [data-testid="stExpander"] summary svg {
-            color: rgba(255, 255, 255, 0.72) !important;
+        [data-testid="stExpander"] > details > summary > span {
+            display: flex !important;
+            align-items: center !important;
+            gap: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        [data-testid="stExpander"] > details > summary > span > div,
+        [data-testid="stExpander"] > details > summary > span > p {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        [data-testid="stExpander"] > details > summary svg {
+            display: none !important;
+        }
+        [data-testid="stExpander"] > details [data-testid^="stExpanderIcon"] {
+            display: none !important;
+        }
+        [data-testid="stExpander"] > details > summary > span > :first-child {
+            display: none !important;
+        }
+        .di-dropdown-shell details {
+            display: grid;
+            grid-template-rows: minmax(var(--control-height), auto) 0fr;
+            border: 1px solid var(--border);
+            border-radius: var(--control-radius);
+            background: var(--card-surface);
+            overflow: hidden;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+            transition: all var(--accordion-duration) var(--accordion-ease);
+        }
+        .di-dropdown-shell details[open] {
+            grid-template-rows: minmax(var(--control-height), auto) 1fr;
+            border-radius: 18px;
+        }
+        .di-dropdown-shell summary {
+            list-style: none;
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            min-height: var(--control-height);
+            padding: 0 var(--dropdown-inline-padding) 0 var(--dropdown-text-offset);
+            display: flex;
+            align-items: center;
+            gap: 0;
+            border-radius: inherit;
+            position: relative;
+            cursor: pointer;
+            color: var(--text);
             transition:
-                transform var(--accordion-duration) var(--accordion-ease),
+                background var(--accordion-duration) var(--accordion-ease),
                 color var(--accordion-duration) var(--accordion-ease);
         }
-        [data-testid="stExpander"] details:not([open]) summary svg {
-            transform: rotate(180deg);
+        .di-dropdown-shell summary::marker,
+        .di-dropdown-shell summary::-webkit-details-marker {
+            display: none;
         }
-        [data-testid="stExpander"] details[open] summary svg {
-            transform: rotate(0deg);
-            color: var(--text) !important;
+        .di-dropdown-shell summary::before {
+            content: "";
+            position: absolute;
+            left: var(--dropdown-inline-padding);
+            top: 50%;
+            width: var(--dropdown-arrow-size);
+            height: var(--dropdown-arrow-size);
+            transform: translateY(-50%) rotate(180deg);
+            transform-origin: center center;
+            background-color: rgba(255, 255, 255, 0.72);
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M6 12l4-4 4 4' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+            -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M6 12l4-4 4 4' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+            transition:
+                transform var(--accordion-duration) var(--accordion-ease),
+                background-color var(--accordion-duration) var(--accordion-ease);
+            pointer-events: none;
+        }
+        .di-dropdown-shell details[open] > summary {
+            border-bottom: 1px solid var(--border);
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+        .di-dropdown-shell details[open] > summary::before {
+            transform: translateY(-50%) rotate(0deg);
+            background-color: var(--text);
+        }
+        .di-dropdown-shell details > div {
+            min-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transform: translateY(0.4rem);
+            transform-origin: top center;
+            transition:
+                opacity var(--accordion-duration) var(--accordion-ease),
+                transform var(--accordion-duration) var(--accordion-ease);
+        }
+        .di-dropdown-shell details[open] > div {
+            opacity: 1;
+            transform: translateY(0);
+            border-radius: 0 0 18px 18px;
+            overflow: visible;
+        }
+        .di-dropdown-shell details > div > div {
+            opacity: 0;
+            transform: translateY(0.9rem);
+            transition:
+                opacity var(--accordion-duration) var(--accordion-ease),
+                transform var(--accordion-duration) var(--accordion-ease);
+        }
+        .di-dropdown-shell details[open] > div > div {
+            opacity: 1;
+            transform: translateY(0);
+            transition-delay: 75ms;
+        }
+        .di-dropdown-caption {
+            color: rgba(255, 255, 255, 0.72);
+            font-size: 0.82rem;
+            line-height: 1.45;
+            margin-top: 0.7rem;
+        }
+        .di-dropdown-meta-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.7rem;
+            margin-bottom: 0.8rem;
+        }
+        .di-dropdown-meta-card {
+            padding: 0.8rem 0.9rem;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: var(--card-surface);
+        }
+        .di-dropdown-meta-label {
+            color: var(--muted-strong);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-size: 0.66rem;
+            margin-bottom: 0.4rem;
+        }
+        .di-dropdown-meta-value {
+            color: var(--text);
+            font-family: var(--font-display);
+            font-size: 1rem;
+            letter-spacing: -0.02em;
+            line-height: 1.25;
+        }
+        .di-dropdown-meta-copy {
+            margin-top: 0.35rem;
+            color: rgba(255, 255, 255, 0.72);
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }
+        .di-dropdown-list {
+            list-style: disc;
+            margin: 0.55rem 0 0 1.15rem;
+            padding: 0;
+            color: var(--text);
+        }
+        .di-dropdown-list li {
+            margin: 0 0 0.38rem 0;
+            line-height: 1.5;
+        }
+        .di-dropdown-list li:last-child {
+            margin-bottom: 0;
         }
         .stDateInput > div,
         .stSelectbox > div,
@@ -870,7 +1213,7 @@ def _inject_app_theme():
         .stTextInput [data-baseweb="base-input"],
         .stNumberInput [data-baseweb="base-input"],
         .stDateInput [data-baseweb="input"] {
-            background: rgba(14, 19, 27, 0.96) !important;
+            background: var(--card-surface) !important;
             border: 1px solid var(--border-strong) !important;
             border-radius: var(--control-radius) !important;
             color: var(--text) !important;
@@ -878,26 +1221,66 @@ def _inject_app_theme():
             min-height: var(--control-height) !important;
             transition: all var(--accordion-duration) var(--accordion-ease) !important;
         }
+        .stSelectbox div[data-baseweb="select"] > div,
+        .stMultiSelect div[data-baseweb="select"] > div {
+            display: flex !important;
+            align-items: center !important;
+            padding: 0 var(--dropdown-inline-padding) 0 var(--dropdown-text-offset) !important;
+            gap: 0 !important;
+            position: relative !important;
+        }
         .stSelectbox div[data-baseweb="select"] > div:has([aria-expanded="true"]),
         .stMultiSelect div[data-baseweb="select"] > div:has([aria-expanded="true"]),
         .stDateInput [data-baseweb="input"]:focus-within {
             border-radius: 18px !important;
         }
-        .stSelectbox div[data-baseweb="select"] > div svg,
-        .stMultiSelect div[data-baseweb="select"] > div svg {
-            color: rgba(255, 255, 255, 0.72) !important;
+        .stSelectbox div[data-baseweb="select"] > div:has([aria-expanded="true"]),
+        .stMultiSelect div[data-baseweb="select"] > div:has([aria-expanded="true"]) {
+            border-bottom-left-radius: 0 !important;
+            border-bottom-right-radius: 0 !important;
+            border-bottom-color: transparent !important;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2) !important;
+        }
+        .stSelectbox div[data-baseweb="select"] > div > div:first-child,
+        .stMultiSelect div[data-baseweb="select"] > div > div:first-child {
+            order: initial !important;
+            display: flex !important;
+            align-items: center !important;
+            flex: 1 1 auto;
+            min-width: 0;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        .stSelectbox div[data-baseweb="select"] > div > div:last-child,
+        .stMultiSelect div[data-baseweb="select"] > div > div:last-child {
+            display: none !important;
+        }
+        .stSelectbox div[data-baseweb="select"] > div::before,
+        .stMultiSelect div[data-baseweb="select"] > div::before {
+            content: "";
+            position: absolute;
+            left: var(--dropdown-inline-padding);
+            top: 50%;
+            width: var(--dropdown-arrow-size);
+            height: var(--dropdown-arrow-size);
+            transform: translateY(-50%) rotate(180deg);
+            transform-origin: center center;
+            background-color: rgba(255, 255, 255, 0.72);
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M6 12l4-4 4 4' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+            -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M6 12l4-4 4 4' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
             transition:
                 transform var(--accordion-duration) var(--accordion-ease),
-                color var(--accordion-duration) var(--accordion-ease) !important;
+                background-color var(--accordion-duration) var(--accordion-ease) !important;
+            pointer-events: none;
         }
-        .stSelectbox div[data-baseweb="select"] > div:not(:has([aria-expanded="true"])) svg,
-        .stMultiSelect div[data-baseweb="select"] > div:not(:has([aria-expanded="true"])) svg {
-            transform: rotate(180deg);
+        .stSelectbox div[data-baseweb="select"] > div svg,
+        .stMultiSelect div[data-baseweb="select"] > div svg {
+            display: none !important;
         }
-        .stSelectbox div[data-baseweb="select"] > div:has([aria-expanded="true"]) svg,
-        .stMultiSelect div[data-baseweb="select"] > div:has([aria-expanded="true"]) svg {
-            transform: rotate(0deg);
-            color: var(--text) !important;
+        .stSelectbox div[data-baseweb="select"] > div:has([aria-expanded="true"])::before,
+        .stMultiSelect div[data-baseweb="select"] > div:has([aria-expanded="true"])::before {
+            transform: translateY(-50%) rotate(0deg);
+            background-color: var(--text);
         }
         .stSelectbox div[data-baseweb="select"] [data-baseweb="select"] > div,
         .stMultiSelect div[data-baseweb="select"] [data-baseweb="select"] > div,
@@ -925,8 +1308,26 @@ def _inject_app_theme():
         .stDateInput input,
         .stSelectbox div[data-baseweb="select"] [role="combobox"],
         .stMultiSelect div[data-baseweb="select"] [role="combobox"],
-        [data-testid="stExpander"] summary {
+        [data-testid="stExpander"] > details > summary {
             min-height: var(--control-height) !important;
+        }
+        .stSelectbox div[data-baseweb="select"] [role="combobox"],
+        .stMultiSelect div[data-baseweb="select"] [role="combobox"] {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            line-height: 1.2 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            margin: 0 !important;
+            text-align: left !important;
+        }
+        .stSelectbox div[data-baseweb="select"] [role="combobox"] > div,
+        .stMultiSelect div[data-baseweb="select"] [role="combobox"] > div {
+            margin: 0 !important;
+            padding: 0 !important;
         }
         [data-testid="stSidebar"] .stNumberInput > div,
         [data-testid="stSidebar"] .stNumberInput > div[data-baseweb="input"],
@@ -978,7 +1379,7 @@ def _inject_app_theme():
         }
         [data-testid="stDataFrame"] [role="grid"],
         [data-testid="stTable"] table {
-            background: rgba(13, 17, 23, 0.96);
+            background: var(--card-surface);
         }
         [data-testid="stDataFrame"] [role="columnheader"],
         [data-testid="stTable"] th {
@@ -999,7 +1400,7 @@ def _inject_app_theme():
             border-radius: 18px;
             overflow: hidden;
             border: 1px solid rgba(255, 255, 255, 0.09);
-            background: rgba(13, 17, 23, 0.82);
+            background: var(--card-surface);
             box-shadow: 0 10px 20px rgba(0, 0, 0, 0.14);
             padding: 0.18rem;
             transition: transform 220ms ease, border-color 220ms ease, box-shadow 260ms ease;
@@ -1014,39 +1415,72 @@ def _inject_app_theme():
             border-radius: 18px;
             background: rgba(16, 20, 27, 0.92);
             padding: 0.25rem 0.45rem;
+            overflow-anchor: none;
         }
         [data-testid="stChatInput"] textarea {
             font-size: 0.95rem !important;
+        }
+        [data-testid="stChatMessage"] {
+            overflow-anchor: none;
         }
         [data-baseweb="popover"] [role="listbox"],
         [data-baseweb="popover"] [data-baseweb="menu"] {
             animation: di-dropdown-panel-in var(--accordion-duration) var(--accordion-ease);
             transform-origin: top center;
             overflow: hidden;
+            margin-top: 0 !important;
+            border: 1px solid var(--border-strong);
+            border-top: 0;
+            border-radius: 0 0 18px 18px;
+            background: var(--card-surface) !important;
+            box-shadow: 0 16px 34px rgba(0, 0, 0, 0.26);
+            padding-top: 0.2rem;
+        }
+        [data-baseweb="popover"] [data-baseweb="calendar"] {
+            background: var(--card-surface) !important;
+            border: 1px solid var(--border-strong) !important;
+            border-radius: 18px !important;
+            box-shadow: 0 16px 34px rgba(0, 0, 0, 0.26) !important;
+            backdrop-filter: blur(18px);
+            color: var(--text) !important;
+            overflow: hidden !important;
+        }
+        [data-baseweb="popover"] [data-baseweb="calendar"] *,
+        [data-baseweb="popover"] [data-baseweb="calendar"] button,
+        [data-baseweb="popover"] [data-baseweb="calendar"] span,
+        [data-baseweb="popover"] [data-baseweb="calendar"] div {
+            color: var(--text) !important;
+        }
+        [data-baseweb="popover"] [data-baseweb="calendar"] button {
+            border-radius: 12px !important;
+            transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease !important;
+        }
+        [data-baseweb="popover"] [data-baseweb="calendar"] button:hover {
+            background: rgba(255, 255, 255, 0.055) !important;
+        }
+        [data-baseweb="popover"] [data-baseweb="calendar"] [aria-selected="true"],
+        [data-baseweb="popover"] [data-baseweb="calendar"] [data-highlighted="true"] {
+            background: rgba(255, 255, 255, 0.085) !important;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+        }
+        [data-baseweb="popover"] [data-baseweb="calendar"] [aria-disabled="true"] {
+            color: rgba(255, 255, 255, 0.36) !important;
         }
         [data-baseweb="popover"] [role="option"],
         [data-baseweb="popover"] [data-baseweb="menu"] > * {
-            opacity: 0;
-            transform: translateY(1rem);
-            animation: di-dropdown-item-in var(--accordion-duration) var(--accordion-ease) forwards;
+            opacity: 1;
+            transform: none;
+            animation: none !important;
+            background: transparent !important;
         }
-        [data-baseweb="popover"] [role="option"]:nth-child(1),
-        [data-baseweb="popover"] [data-baseweb="menu"] > *:nth-child(1) { animation-delay: 0ms; }
-        [data-baseweb="popover"] [role="option"]:nth-child(2),
-        [data-baseweb="popover"] [data-baseweb="menu"] > *:nth-child(2) { animation-delay: 75ms; }
-        [data-baseweb="popover"] [role="option"]:nth-child(3),
-        [data-baseweb="popover"] [data-baseweb="menu"] > *:nth-child(3) { animation-delay: 150ms; }
-        [data-baseweb="popover"] [role="option"]:nth-child(4),
-        [data-baseweb="popover"] [data-baseweb="menu"] > *:nth-child(4) { animation-delay: 225ms; }
-        [data-baseweb="popover"] [role="option"]:nth-child(5),
-        [data-baseweb="popover"] [data-baseweb="menu"] > *:nth-child(5) { animation-delay: 300ms; }
-        [data-baseweb="popover"] [role="option"]:nth-child(6),
-        [data-baseweb="popover"] [data-baseweb="menu"] > *:nth-child(6) { animation-delay: 375ms; }
         .stSelectbox div[data-baseweb="select"] > div:focus-within,
         .stMultiSelect div[data-baseweb="select"] > div:focus-within,
-        .stTextInput [data-baseweb="base-input"]:focus-within,
-        .stNumberInput [data-baseweb="base-input"]:focus-within,
         .stDateInput [data-baseweb="input"]:focus-within {
+            border-color: rgba(255, 255, 255, 0.12) !important;
+            box-shadow: none !important;
+        }
+        .stTextInput [data-baseweb="base-input"]:focus-within,
+        .stNumberInput [data-baseweb="base-input"]:focus-within {
             border-color: rgba(243, 200, 109, 0.44) !important;
             box-shadow: 0 0 0 1px rgba(243, 200, 109, 0.2);
         }
@@ -1060,22 +1494,13 @@ def _inject_app_theme():
                 transform: translateY(0);
             }
         }
-        @keyframes di-dropdown-item-in {
-            from {
-                opacity: 0;
-                transform: translateY(1rem);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
         hr {
             border-color: rgba(255, 255, 255, 0.08);
             margin: var(--space-section) 0 !important;
         }
         @media (max-width: 1080px) {
             .di-trust-layout { grid-template-columns: 1fr; }
+            .di-dropdown-meta-grid { grid-template-columns: 1fr; }
         }
         </style>
         """,
@@ -1083,14 +1508,14 @@ def _inject_app_theme():
     )
 
 
-def _render_page_intro(title: str, subtitle: str, kicker: str = "Decision Infrastructure"):
+def _render_page_intro(title: str, subtitle: str):
     """Render a premium page hero."""
     st.markdown(
         f"""
         <div class="di-hero">
-            <div class="di-kicker">{kicker}</div>
-            <p class="di-title">{title}</p>
+            <div class="di-title di-page-title">{title}</div>
             <div class="di-subtitle">{subtitle}</div>
+            <div class="di-hero-rule"></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1098,8 +1523,8 @@ def _render_page_intro(title: str, subtitle: str, kicker: str = "Decision Infras
 
 
 def _render_page_shell(page_name: str):
-    kicker, title, subtitle = PAGE_COPY[page_name]
-    _render_page_intro(title, subtitle, kicker=kicker)
+    _, title, subtitle = PAGE_COPY[page_name]
+    _render_page_intro(title, subtitle)
     _render_layout_gap("section")
 
 
@@ -1137,6 +1562,41 @@ def _format_display_date(value) -> str:
     if value is None or pd.isna(value):
         return "N/A"
     return pd.to_datetime(value).strftime("%b %d, %Y")
+
+
+def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+    color = color.lstrip("#")
+    return tuple(int(color[index:index + 2], 16) for index in (0, 2, 4))
+
+
+def _interpolate_hex(start: str, end: str, ratio: float) -> str:
+    ratio = max(0.0, min(1.0, ratio))
+    start_rgb = _hex_to_rgb(start)
+    end_rgb = _hex_to_rgb(end)
+    blended = tuple(round(start_component + (end_component - start_component) * ratio) for start_component, end_component in zip(start_rgb, end_rgb))
+    return "#" + "".join(f"{component:02x}" for component in blended)
+
+
+def _blend_hex(color: str, target: str, ratio: float) -> str:
+    return _interpolate_hex(color, target, ratio)
+
+
+def _trust_score_color(score: float) -> str:
+    score = max(0.0, min(100.0, float(score)))
+    if score <= 50:
+        return _interpolate_hex("#ff7d6d", "#f3b35f", score / 50 if score else 0.0)
+    return _interpolate_hex("#f3b35f", "#36d39b", (score - 50) / 50 if score < 100 else 1.0)
+
+
+def _trust_meter_fill_style(score: float) -> str:
+    score = max(0.0, min(100.0, float(score)))
+    background_size = 100 if score <= 0 else (100 / score) * 100
+    return (
+        "background: linear-gradient(90deg, #ff7d6d 0%, #f3b35f 50%, #36d39b 100%); "
+        f"background-size: {background_size:.2f}% 100%; "
+        "background-position: left top; "
+        "background-repeat: no-repeat;"
+    )
 
 
 def _format_coverage_window(start_value, end_value) -> str:
@@ -1191,7 +1651,7 @@ def _format_table_cell(value, formatter=None) -> str:
     return str(value)
 
 
-def _render_modern_table(dataframe: pd.DataFrame, formatters: dict[str, object] | None = None):
+def _build_modern_table_markup(dataframe: pd.DataFrame, formatters: dict[str, object] | None = None) -> str:
     formatters = formatters or {}
     headers = "".join(f"<th>{escape(str(column))}</th>" for column in dataframe.columns)
     body_rows = []
@@ -1202,18 +1662,33 @@ def _render_modern_table(dataframe: pd.DataFrame, formatters: dict[str, object] 
             cells.append(f"<td>{escape(formatted_value)}</td>")
         body_rows.append(f"<tr>{''.join(cells)}</tr>")
 
-    table_markup = (
+    return (
         f'<div class="di-table-shell"><div class="di-table-wrap"><table class="di-table">'
         f'<thead><tr>{headers}</tr></thead><tbody>{"".join(body_rows)}</tbody></table></div></div>'
     )
-    st.markdown(table_markup, unsafe_allow_html=True)
+
+
+def _render_modern_table(dataframe: pd.DataFrame, formatters: dict[str, object] | None = None):
+    st.markdown(_build_modern_table_markup(dataframe, formatters=formatters), unsafe_allow_html=True)
+
+
+def _build_issue_list_markup(messages: list[str], empty_message: str, max_items: int = 3) -> str:
+    if not messages:
+        return f'<div class="di-stat-empty">{escape(empty_message)}</div>'
+
+    visible = messages[:max_items]
+    items_markup = "".join(f"<li>{escape(message)}</li>" for message in visible)
+    remainder = len(messages) - len(visible)
+    if remainder > 0:
+        items_markup += f"<li>+ {remainder} more issue(s)</li>"
+    return f'<ul class="di-stat-issues">{items_markup}</ul>'
 
 
 def _apply_chart_theme(fig: go.Figure):
     """Apply a consistent dark premium chart theme."""
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(255,255,255,0.015)",
+        plot_bgcolor="rgba(255,255,255,0.028)",
         font=dict(color="#e7e9ec", family="IBM Plex Sans, Segoe UI Variable Text, Segoe UI, sans-serif", size=12),
         title_font=dict(size=18, color="#f5f5f6"),
         margin=dict(l=8, r=8, t=28, b=8),
@@ -1231,6 +1706,129 @@ def _apply_chart_theme(fig: go.Figure):
         hoverlabel=dict(bgcolor="#11161f", bordercolor="rgba(243,200,109,0.2)", font_color="#f5f5f6"),
     )
     return fig
+
+
+def _inject_expander_close_sync():
+    """Force native expander chevrons to start closing immediately on click."""
+    components.html(
+        """
+        <script>
+        const parentDoc = window.parent && window.parent.document ? window.parent.document : document;
+        const CLOSING_CLASS = "di-expander-closing";
+        const DURATION_MS = 560;
+
+        function bindExpanders() {
+          parentDoc
+            .querySelectorAll('[data-testid="stExpander"] > details > summary')
+            .forEach((summary) => {
+              if (summary.dataset.diCloseSyncBound === "1") return;
+              summary.dataset.diCloseSyncBound = "1";
+
+              summary.addEventListener("click", () => {
+                const details = summary.parentElement;
+                if (!details) return;
+
+                if (details.hasAttribute("open")) {
+                  details.classList.add(CLOSING_CLASS);
+                  window.setTimeout(() => {
+                    details.classList.remove(CLOSING_CLASS);
+                  }, DURATION_MS);
+                } else {
+                  details.classList.remove(CLOSING_CLASS);
+                }
+              });
+            });
+        }
+
+        bindExpanders();
+        const observer = new MutationObserver(() => bindExpanders());
+        observer.observe(parentDoc.body, { childList: true, subtree: true });
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+def _inject_select_toggle_fix():
+    """Make clicking an already-open BaseWeb select close it cleanly."""
+    components.html(
+        """
+        <script>
+        const parentDoc = window.parent && window.parent.document ? window.parent.document : document;
+        const SELECT_TRIGGER = [
+          '.stSelectbox div[data-baseweb="select"] > div',
+          '.stMultiSelect div[data-baseweb="select"] > div'
+        ].join(', ');
+
+        function getTrigger(target) {
+          return target && target.closest ? target.closest(SELECT_TRIGGER) : null;
+        }
+
+        function getCombobox(trigger) {
+          return trigger ? trigger.querySelector('[role="combobox"]') : null;
+        }
+
+        if (!parentDoc.__diSelectToggleFixBound) {
+          parentDoc.__diSelectToggleFixBound = true;
+
+          function closeIfExpanded(event) {
+            const trigger = getTrigger(event.target);
+            if (!trigger) return false;
+
+            const combobox = getCombobox(trigger);
+            if (!combobox || combobox.getAttribute("aria-expanded") !== "true") {
+              return false;
+            }
+
+            trigger.dataset.diForceClose = "1";
+            event.preventDefault();
+            event.stopPropagation();
+
+            combobox.dispatchEvent(
+              new KeyboardEvent("keydown", {
+                key: "Escape",
+                code: "Escape",
+                keyCode: 27,
+                which: 27,
+                bubbles: true,
+              })
+            );
+            combobox.blur();
+
+            window.setTimeout(() => {
+              delete trigger.dataset.diForceClose;
+            }, 140);
+            return true;
+          }
+
+          parentDoc.addEventListener(
+            "pointerdown",
+            (event) => {
+              closeIfExpanded(event);
+            },
+            true
+          );
+
+          parentDoc.addEventListener(
+            "click",
+            (event) => {
+              const trigger = getTrigger(event.target);
+              if (!trigger) return;
+
+              if (trigger.dataset.diForceClose === "1" || closeIfExpanded(event)) {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            },
+            true
+          );
+        }
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 
 _inject_app_theme()
@@ -1274,7 +1872,7 @@ def _build_metrics_outputs(data: dict, start_date_ts=None, end_date_ts=None):
 
 
 def _render_sidebar_shell(available_pages: list[str]):
-    """Render a custom premium sidebar and return the active page."""
+    """Render the native Streamlit sidebar and return the active page plus main container."""
     if st.session_state.current_page not in available_pages:
         st.session_state.current_page = available_pages[0]
 
@@ -1292,7 +1890,10 @@ def _render_sidebar_shell(available_pages: list[str]):
             unsafe_allow_html=True,
         )
 
-        st.markdown('<div class="di-sidebar-section">Navigation</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="di-sidebar-section">Navigation</div>',
+            unsafe_allow_html=True,
+        )
         for page_name in available_pages:
             button_type = "primary" if st.session_state.current_page == page_name else "secondary"
             if st.button(page_name, key=f"nav_{page_name}", type=button_type, use_container_width=True):
@@ -1317,16 +1918,18 @@ def _render_sidebar_shell(available_pages: list[str]):
         if st.session_state.data is not None and st.session_state.validation_results is not None:
             sidebar_overview = get_data_quality_overview(st.session_state.data, st.session_state.validation_results)
             status_class = "ready" if sidebar_overview["status"] == "ready" else ("caution" if sidebar_overview["status"] == "caution" else "blocked")
+            sidebar_trust_color = _trust_score_color(sidebar_overview["trust_score"])
+            sidebar_meter_style = _trust_meter_fill_style(sidebar_overview["trust_score"])
             st.markdown(
                 f"""
                 <div class="di-sidebar-trust">
                     <div class="di-sidebar-section" style="margin-top:0; margin-bottom:0.45rem;">Trust Snapshot</div>
                     <div class="di-sidebar-trust-top">
-                        <div class="di-sidebar-trust-score">{sidebar_overview['trust_score']}%</div>
-                        <div class="di-sidebar-trust-label">{sidebar_overview['trust_label']}</div>
+                        <div class="di-sidebar-trust-score" style="color:{sidebar_trust_color};">{sidebar_overview['trust_score']}%</div>
+                        <div class="di-sidebar-trust-label" style="color:{sidebar_trust_color};">{sidebar_overview['trust_label']}</div>
                     </div>
                     <div class="di-meter-track">
-                        <div class="di-meter-fill {status_class}" style="width:{sidebar_overview['trust_score']}%;"></div>
+                        <div class="di-meter-fill {status_class}" style="width:{sidebar_overview['trust_score']}%; {sidebar_meter_style}"></div>
                     </div>
                     <div class="di-sidebar-trust-copy">
                         As of {_format_display_date(sidebar_overview['as_of_date'])}<br/>
@@ -1339,7 +1942,7 @@ def _render_sidebar_shell(available_pages: list[str]):
 
         st.caption("Validated inputs, deterministic calculations, and explicit caveats set the trust level for every output.")
 
-    return st.session_state.current_page
+    return st.session_state.current_page, st.container()
 
 
 def _render_data_quality_banner(data: dict, validation_results: dict, metrics_outputs: dict | None = None):
@@ -1355,39 +1958,69 @@ def _render_data_quality_banner(data: dict, validation_results: dict, metrics_ou
     status = overview["status"]
 
     status_class = "ready" if status == "ready" else ("caution" if status == "caution" else "blocked")
+    trust_color = _trust_score_color(overview["trust_score"])
+    meter_fill_style = _trust_meter_fill_style(overview["trust_score"])
     as_of_display = _format_display_date(overview["as_of_date"])
     coverage_display = _format_coverage_window(overview["coverage_start"], overview["coverage_end"])
     freshness_days = [row["freshness_days"] for row in overview["datasets"] if row["freshness_days"] is not None]
     freshness_display = f"{max(freshness_days)} day lag" if freshness_days else "Fully current"
+    blocking_issue_markup = _build_issue_list_markup(
+        overview.get("blocking_error_messages", []),
+        "No blocking errors are currently reducing trust.",
+    )
+    warning_issue_markup = _build_issue_list_markup(
+        overview.get("warning_messages", []),
+        "No warnings are currently reducing trust.",
+    )
+    trust_driver_markup = _build_issue_list_markup(
+        overview.get("main_factors", []),
+        "No material trust deductions were detected.",
+        max_items=4,
+    )
+    trust_meta_markup = ""
+    if overview.get("cap_reason"):
+        trust_meta_markup = (
+            '<div class="di-trust-meta">'
+            '<div class="di-trust-meta-title">Why the displayed trust is capped</div>'
+            f'<div class="di-trust-meta-copy">Underlying weighted data quality is {overview.get("uncapped_trust_score", overview["trust_score"])}%. '
+            f'{escape(str(overview["cap_reason"]))}</div>'
+            "</div>"
+        )
 
+    _render_surface_header(
+        "Data Trust",
+        f'Trust score {overview["trust_score"]}%. Deterministic outputs remain visible, but should be read in light of the current validation, coverage, and freshness status.',
+    )
     st.markdown(
         f"""
         <div class="di-trust-banner">
             <div class="di-trust-layout">
                 <div>
-                    <div class="di-trust-eyebrow">Data Trust</div>
-                    <div class="di-trust-title">Outputs remain deterministic, but trust should be explicit.</div>
+                    <div class="di-kpi-label">Trust Score</div>
                     <div class="di-trust-score-row">
-                        <div class="di-trust-score">{overview['trust_score']}%</div>
-                        <div class="di-pill {status_class}">{overview['trust_label']}</div>
+                        <div class="di-trust-score" style="color:{trust_color};">{overview['trust_score']}%</div>
+                        <div class="di-pill {status_class}" style="color:{trust_color}; border-color:{trust_color}33;">{overview['trust_label']}</div>
                     </div>
                     <div class="di-meter-track">
-                        <div class="di-meter-fill {status_class}" style="width:{overview['trust_score']}%;"></div>
+                        <div class="di-meter-fill {status_class}" style="width:{overview['trust_score']}%; {meter_fill_style}"></div>
                     </div>
                     <div class="di-trust-message">
                         {overview["message"]} Deterministic calculations remain visible, but they should be read in light of the current validation, coverage, and freshness status.
                     </div>
+                    {trust_meta_markup}
                 </div>
                 <div class="di-trust-stats">
                     <div class="di-stat-card">
                         <div class="di-stat-label">Blocking Errors</div>
                         <div class="di-stat-value">{overview['blocking_error_count']}</div>
                         <div class="di-stat-detail">Issues that can make outputs incomplete or unreliable.</div>
+                        {blocking_issue_markup}
                     </div>
                     <div class="di-stat-card">
                         <div class="di-stat-label">Warnings</div>
                         <div class="di-stat-value">{overview['warning_count']}</div>
                         <div class="di-stat-detail">Inputs worth reviewing before using outputs with confidence.</div>
+                        {warning_issue_markup}
                     </div>
                     <div class="di-stat-card">
                         <div class="di-stat-label">As-of Date</div>
@@ -1407,20 +2040,62 @@ def _render_data_quality_banner(data: dict, validation_results: dict, metrics_ou
     )
 
     _render_layout_gap("content")
-    with st.expander("Dataset Coverage & Freshness", expanded=False):
-        coverage_rows = []
-        for dataset in overview["datasets"]:
-            coverage_rows.append(
-                {
-                    "Dataset": dataset["dataset"],
-                    "Rows": dataset["row_count"],
-                    "Coverage Start": _format_display_date(dataset["coverage_start"]),
-                    "Coverage End": _format_display_date(dataset["coverage_end"]),
-                    "Freshness vs As-of (days)": dataset["freshness_days"] if dataset["freshness_days"] is not None else "N/A",
-                }
-            )
-        _render_modern_table(pd.DataFrame(coverage_rows))
-        st.caption("Deterministic outputs are only as trustworthy as the loaded CSV coverage and validation status.")
+    coverage_rows = []
+    for dataset in overview["datasets"]:
+        coverage_rows.append(
+            {
+                "Dataset": dataset["dataset"].replace("_", " ").title(),
+                "Weight": f"{dataset.get('weight', 0)}%",
+                "Dataset Trust": f"{dataset.get('dataset_score', 0)}%",
+                "Rows": dataset["row_count"],
+                "Coverage": _format_coverage_window(dataset["coverage_start"], dataset["coverage_end"]),
+                "Freshness Lag": dataset["freshness_days"] if dataset["freshness_days"] is not None else "N/A",
+                "Freshness Target": (
+                    f"{dataset['freshness_target_days']} days"
+                    if dataset.get("freshness_target_days") is not None
+                    else "N/A"
+                ),
+                "Completeness Penalty": f"{dataset.get('completeness_penalty', 0):.0f}",
+                "Validity Penalty": f"{dataset.get('validity_penalty', 0):.0f}",
+                "Freshness Penalty": f"{dataset.get('freshness_penalty', 0):.0f}",
+                "Primary Driver": dataset.get("top_factor", "No material trust deductions."),
+            }
+        )
+    coverage_table_markup = _build_modern_table_markup(pd.DataFrame(coverage_rows))
+    st.markdown(
+        f"""
+        <div class="di-dropdown-shell">
+            <details>
+                <summary>Dataset Coverage &amp; Freshness</summary>
+                <div>
+                    <div>
+                        <div class="di-dropdown-meta-grid">
+                            <div class="di-dropdown-meta-card">
+                                <div class="di-dropdown-meta-label">Displayed Trust</div>
+                                <div class="di-dropdown-meta-value">{overview['trust_score']}%</div>
+                                <div class="di-dropdown-meta-copy">{escape(str(overview['trust_label']))}. {escape(str(overview['message']))}</div>
+                            </div>
+                            <div class="di-dropdown-meta-card">
+                                <div class="di-dropdown-meta-label">Underlying Dataset Quality</div>
+                                <div class="di-dropdown-meta-value">{overview.get('uncapped_trust_score', overview['trust_score'])}%</div>
+                                <div class="di-dropdown-meta-copy">{escape(str(overview.get('cap_reason') or 'No validation cap is currently applied.'))}</div>
+                            </div>
+                        </div>
+                        <div class="di-dropdown-meta-card" style="margin-bottom:0.8rem;">
+                            <div class="di-dropdown-meta-label">Main Trust Drivers</div>
+                            {trust_driver_markup}
+                        </div>
+                        {coverage_table_markup}
+                        <div class="di-dropdown-caption">
+                            Deterministic outputs are only as trustworthy as the loaded CSV coverage, validation status, and freshness of the transactional datasets. Each dataset score above feeds the weighted trust model directly.
+                        </div>
+                    </div>
+                </div>
+            </details>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     return overview
 
 
@@ -2102,22 +2777,23 @@ def main():
     else:
         available_pages = ["Overview Dashboard", "Projects", "People", "Financial Statements", "Weekly Brief", "Insights & Explanations", "Data Quality"]
 
-    page = _render_sidebar_shell(available_pages)
+    page, main_container = _render_sidebar_shell(available_pages)
 
-    if page == "Overview Dashboard":
-        page_overview()
-    elif page == "Projects":
-        page_projects()
-    elif page == "People":
-        page_people()
-    elif page == "Financial Statements":
-        page_financial_statements()
-    elif page == "Weekly Brief":
-        page_briefs()
-    elif page == "Insights & Explanations":
-        page_insights()
-    elif page == "Data Quality":
-        page_data_quality()
+    with main_container:
+        if page == "Overview Dashboard":
+            page_overview()
+        elif page == "Projects":
+            page_projects()
+        elif page == "People":
+            page_people()
+        elif page == "Financial Statements":
+            page_financial_statements()
+        elif page == "Weekly Brief":
+            page_briefs()
+        elif page == "Insights & Explanations":
+            page_insights()
+        elif page == "Data Quality":
+            page_data_quality()
 
 
 if __name__ == "__main__":
